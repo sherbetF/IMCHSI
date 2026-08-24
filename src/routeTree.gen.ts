@@ -10,63 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as EchocardiogramRouteImport } from './routes/echocardiogram'
-import { Route as StaffRouteImport } from './routes/staff'
-import { Route as StockTakeRouteImport } from './routes/stock-take'
+import { Route as EchoRouteImport } from './routes/echo'
+import { Route as HolterRouteImport } from './routes/holter'
+import { Route as StressTestRouteImport } from './routes/stress-test'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EchocardiogramRoute = EchocardiogramRouteImport.update({
-  id: '/echocardiogram',
-  path: '/echocardiogram',
+const EchoRoute = EchoRouteImport.update({
+  id: '/echo',
+  path: '/echo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StaffRoute = StaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
+const HolterRoute = HolterRouteImport.update({
+  id: '/holter',
+  path: '/holter',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StockTakeRoute = StockTakeRouteImport.update({
-  id: '/stock-take',
-  path: '/stock-take',
+const StressTestRoute = StressTestRouteImport.update({
+  id: '/stress-test',
+  path: '/stress-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/echocardiogram': typeof EchocardiogramRoute
-  '/staff': typeof StaffRoute
-  '/stock-take': typeof StockTakeRoute
+  '/echo': typeof EchoRoute
+  '/holter': typeof HolterRoute
+  '/stress-test': typeof StressTestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/echocardiogram': typeof EchocardiogramRoute
-  '/staff': typeof StaffRoute
-  '/stock-take': typeof StockTakeRoute
+  '/echo': typeof EchoRoute
+  '/holter': typeof HolterRoute
+  '/stress-test': typeof StressTestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/echocardiogram': typeof EchocardiogramRoute
-  '/staff': typeof StaffRoute
-  '/stock-take': typeof StockTakeRoute
+  '/echo': typeof EchoRoute
+  '/holter': typeof HolterRoute
+  '/stress-test': typeof StressTestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/echocardiogram' | '/staff' | '/stock-take'
+  fullPaths: '/' | '/echo' | '/holter' | '/stress-test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/echocardiogram' | '/staff' | '/stock-take'
-  id: '__root__' | '/' | '/echocardiogram' | '/staff' | '/stock-take'
+  to: '/' | '/echo' | '/holter' | '/stress-test'
+  id: '__root__' | '/' | '/echo' | '/holter' | '/stress-test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  EchocardiogramRoute: typeof EchocardiogramRoute
-  StaffRoute: typeof StaffRoute
-  StockTakeRoute: typeof StockTakeRoute
+  EchoRoute: typeof EchoRoute
+  HolterRoute: typeof HolterRoute
+  StressTestRoute: typeof StressTestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -78,25 +78,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/echocardiogram': {
-      id: '/echocardiogram'
-      path: '/echocardiogram'
-      fullPath: '/echocardiogram'
-      preLoaderRoute: typeof EchocardiogramRouteImport
+    '/echo': {
+      id: '/echo'
+      path: '/echo'
+      fullPath: '/echo'
+      preLoaderRoute: typeof EchoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/staff': {
-      id: '/staff'
-      path: '/staff'
-      fullPath: '/staff'
-      preLoaderRoute: typeof StaffRouteImport
+    '/holter': {
+      id: '/holter'
+      path: '/holter'
+      fullPath: '/holter'
+      preLoaderRoute: typeof HolterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/stock-take': {
-      id: '/stock-take'
-      path: '/stock-take'
-      fullPath: '/stock-take'
-      preLoaderRoute: typeof StockTakeRouteImport
+    '/stress-test': {
+      id: '/stress-test'
+      path: '/stress-test'
+      fullPath: '/stress-test'
+      preLoaderRoute: typeof StressTestRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -104,9 +104,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  EchocardiogramRoute: EchocardiogramRoute,
-  StaffRoute: StaffRoute,
-  StockTakeRoute: StockTakeRoute,
+  EchoRoute: EchoRoute,
+  HolterRoute: HolterRoute,
+  StressTestRoute: StressTestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
