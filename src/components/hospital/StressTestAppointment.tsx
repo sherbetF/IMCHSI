@@ -108,7 +108,7 @@ export function StressTestAppointment() {
     );
 
     return () => unsub();
-  }, [selectedFacility?.name, isAdmin]);
+  }, [selectedFacility, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
