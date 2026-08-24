@@ -81,7 +81,7 @@ export function EchoAppointment() {
     );
 
     return () => unsub();
-  }, [selectedFacility, isAdmin]);
+  }, [selectedFacility?.name, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
