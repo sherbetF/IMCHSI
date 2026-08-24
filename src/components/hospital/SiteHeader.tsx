@@ -46,15 +46,19 @@ function useClock() {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export function SiteHeader() {
-  const { selectedFacility, setSelectedFacility, isAdmin, openModal } = useFacility();
+  const { selectedFacility, setSelectedFacility, isAdmin, openModal, isMounted } = useFacility();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<UnifiedRequestNotification[]>([]);
-  const [readIds, setReadIds] = useState<string[]>(getReadNotificationIds());
+  const [readIds, setReadIds] = useState<string[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setReadIds(getReadNotificationIds());
+  }, []);
 
   useEffect(() => {
     const unsub = subscribeToAllPendingNotifications(
@@ -137,7 +141,7 @@ export function SiteHeader() {
           <div className="flex flex-wrap items-center gap-3">
             <p className="eyebrow text-muted-foreground">{date}</p>
             <span className="hidden text-border sm:inline">|</span>
-            {selectedFacility ? (
+            {isMounted && selectedFacility ? (
               <button
                 type="button"
                 onClick={() => openModal("facility")}
@@ -159,6 +163,7 @@ export function SiteHeader() {
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => openModal("greeting")}
                 className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
               >
@@ -358,7 +363,7 @@ export function SiteHeader() {
               <Phone className="h-4 w-4" />
             </button>
 
-            {selectedFacility && (
+            {isMounted && selectedFacility && (
               <button
                 type="button"
                 onClick={() => setSelectedFacility(null)}

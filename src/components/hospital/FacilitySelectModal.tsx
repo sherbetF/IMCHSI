@@ -65,16 +65,15 @@ export function FacilitySelectModal() {
     facility.toLowerCase().includes(searchQuery.toLowerCase().trim()),
   );
 
-  useEffect(() => {
-    const currentGroup = FACILITIES_DATA.find((g) => g.category === selectedCategory);
-    const facilities = currentGroup ? currentGroup.items : [];
-    const filtered = facilities.filter((facility) =>
-      facility.toLowerCase().includes(searchQuery.toLowerCase().trim()),
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    const filtered = availableFacilities.filter((facility) =>
+      facility.toLowerCase().includes(val.toLowerCase().trim()),
     );
     if (filtered.length > 0 && !filtered.includes(selectedName)) {
       setSelectedName(filtered[0]);
     }
-  }, [searchQuery, selectedCategory, selectedName]);
+  };
 
   if (!isModalOpen) return null;
 
@@ -202,7 +201,17 @@ export function FacilitySelectModal() {
           /* =========================================================================
               VIEW 2: SIMPLE & ELEGANT GREETING POPUP
           ========================================================================= */
-          <div className="flex flex-col text-center p-6 sm:p-8 space-y-6">
+          <div className="relative flex flex-col text-center p-6 sm:p-8 space-y-6">
+            {selectedFacility && (
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-surface text-muted-foreground transition-all hover:bg-surface/80 hover:text-foreground"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
             {/* National Crest & Header */}
             <div className="space-y-4 flex flex-col items-center">
               <img
@@ -270,6 +279,16 @@ export function FacilitySelectModal() {
                 >
                   <ShieldCheck className="h-4 w-4" />
                 </button>
+                {selectedFacility && (
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted-foreground transition-all hover:bg-surface/80 hover:text-foreground shrink-0"
+                    title="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -318,7 +337,7 @@ export function FacilitySelectModal() {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     placeholder="Type to search facility name..."
                     className="w-full rounded-xl border border-border bg-background pl-9 pr-8 py-2 text-xs font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   />

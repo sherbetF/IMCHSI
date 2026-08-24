@@ -8,7 +8,7 @@ export interface SelectedFacility {
 
 export type ModalStep = "greeting" | "facility";
 
-interface FacilityContextType {
+export interface FacilityContextType {
   selectedFacility: SelectedFacility | null;
   setSelectedFacility: (facility: SelectedFacility | null) => void;
   isAdmin: boolean;
@@ -17,6 +17,7 @@ interface FacilityContextType {
   modalStep: ModalStep;
   setModalStep: (step: ModalStep) => void;
   openModal: (step?: ModalStep) => void;
+  isMounted: boolean;
 }
 
 const STORAGE_KEY = "hsi_selected_facility_v1";
@@ -25,7 +26,7 @@ const FacilityContext = createContext<FacilityContextType | undefined>(undefined
 
 export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFacility, setSelectedFacilityState] = useState<SelectedFacility | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(true);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [modalStep, setModalStep] = useState<ModalStep>("greeting");
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
@@ -36,13 +37,15 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (saved) {
         const parsed = JSON.parse(saved);
         setSelectedFacilityState(parsed);
+        setIsModalOpen(false);
+      } else {
+        setIsModalOpen(true);
+        setModalStep("greeting");
       }
     } catch {
-      // ignore
+      setIsModalOpen(true);
+      setModalStep("greeting");
     }
-    // Always start with the Greeting popup first when opening the webpage
-    setIsModalOpen(true);
-    setModalStep("greeting");
   }, []);
 
   const setSelectedFacility = (facility: SelectedFacility | null) => {
@@ -82,6 +85,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         modalStep,
         setModalStep,
         openModal,
+        isMounted,
       }}
     >
       {children}
@@ -98,6 +102,7 @@ const defaultFacilityContext: FacilityContextType = {
   modalStep: "greeting",
   setModalStep: () => {},
   openModal: () => {},
+  isMounted: false,
 };
 
 export const useFacility = () => {
