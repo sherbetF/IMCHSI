@@ -1,0 +1,6 @@
+{
+  "name": "Hospital Hub",
+  "description": "Hospital management hub, staff directory, echocardiogram reporting, and stock take application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

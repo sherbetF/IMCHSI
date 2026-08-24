@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "echo_appointments": {
+      "title": "Echo Appointments",
+      "description": "Echocardiogram appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "stress_test_appointments": {
+      "title": "Stress Test Appointments",
+      "description": "Exercise stress test appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "holter_appointments": {
+      "title": "Holter Appointments",
+      "description": "24 Hours Holter Monitoring appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "collections": {
+      "echo_appointments": {
+        "entity": "echo_appointments",
+        "description": "Store echo appointments"
+      },
+      "stress_test_appointments": {
+        "entity": "stress_test_appointments",
+        "description": "Store stress test appointments"
+      },
+      "holter_appointments": {
+        "entity": "holter_appointments",
+        "description": "Store holter appointments"
+      }
+    }
+  }
+}
