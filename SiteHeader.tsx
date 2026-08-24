@@ -61,16 +61,8 @@ export function SiteHeader() {
   }, []);
 
   useEffect(() => {
-    // On a direct/deep route, FacilityContext restores localStorage after the
-    // first render. Do not subscribe with a null facility during that window,
-    // otherwise the header opens three unfiltered Firestore listeners.
-    if (!isMounted || !selectedFacility) {
-      setNotifications([]);
-      return;
-    }
-
     const unsub = subscribeToAllPendingNotifications(
-      selectedFacility.name,
+      selectedFacility?.name || null,
       isAdmin,
       (notifs) => {
         setNotifications(notifs);
@@ -86,7 +78,7 @@ export function SiteHeader() {
       unsub();
       window.removeEventListener("hsi_requests_updated", handleUpdate);
     };
-  }, [isMounted, selectedFacility, isAdmin]);
+  }, [selectedFacility?.name, isAdmin]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
