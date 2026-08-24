@@ -5,81 +5,8 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
-const outputPublicDir = path.resolve(rootDir, ".output/public");
 const distDir = path.resolve(rootDir, "dist");
-
-function getAssetFiles() {
-  const assetsDir = path.join(outputPublicDir, "assets");
-  if (!fs.existsSync(assetsDir)) {
-    console.error("Assets directory not found at:", assetsDir);
-    return { cssFiles: [], jsFiles: [] };
-  }
-
-  const allAssets = fs.readdirSync(assetsDir);
-  const cssFiles = allAssets.filter((f) => f.endsWith(".css")).map((f) => `assets/${f}`);
-
-  // Find index-*.js as main entry
-  const mainJs = allAssets.find((f) => f.startsWith("index-") && f.endsWith(".js"));
-  const jsFiles = mainJs
-    ? [`assets/${mainJs}`]
-    : allAssets.filter((f) => f.endsWith(".js")).map((f) => `assets/${f}`);
-
-  return { cssFiles, jsFiles };
-}
-
-function generateIndexHtml(
-  cssFiles,
-  jsFiles,
-  routeTitle = "Hospital Hub — Internal Medicine Clinic",
-) {
-  const cssLinks = cssFiles.map((css) => `    <link rel="stylesheet" href="./${css}">`).join("\n");
-
-  const jsScripts = jsFiles
-    .map((js) => `    <script type="module" src="./${js}"></script>`)
-    .join("\n");
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${routeTitle}</title>
-    <meta name="description" content="Hospital management hub, cardiovascular lab appointment portals, staff directory, echocardiogram, stress test, and stock take application." />
-    
-    <!-- Open Graph / Meta -->
-    <meta property="og:title" content="${routeTitle}" />
-    <meta property="og:description" content="Hospital management hub, cardiovascular lab appointment portals, staff directory, echocardiogram, stress test, and stock take application." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
-
-    <!-- Single Page Apps for GitHub Pages Redirection Handler -->
-    <script type="text/javascript">
-      (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
-        }
-      }(window.location))
-    </script>
-
-${cssLinks}
-  </head>
-  <body class="bg-background text-foreground antialiased min-h-screen">
-    <div id="root"></div>
-${jsScripts}
-  </body>
-</html>`;
-}
+const publicDir = path.resolve(rootDir, "public");
 
 function generate404Html() {
   return `<!DOCTYPE html>
@@ -119,6 +46,7 @@ function generate404Html() {
 }
 
 function copyDirectoryRecursive(source, target) {
+  if (!fs.existsSync(source)) return;
   if (!fs.existsSync(target)) {
     fs.mkdirSync(target, { recursive: true });
   }
@@ -137,64 +65,53 @@ function copyDirectoryRecursive(source, target) {
 }
 
 function prepareGitHubPages() {
-  console.log("Preparing GitHub Pages static build bundle...");
+  console.log("Preparing GitHub Pages distribution...");
 
-  if (!fs.existsSync(outputPublicDir)) {
-    console.error("Error: .output/public directory does not exist. Run build first.");
+  if (!fs.existsSync(distDir)) {
+    console.error("Error: dist directory does not exist. Run vite build first.");
     process.exit(1);
   }
 
-  const { cssFiles, jsFiles } = getAssetFiles();
-  if (jsFiles.length === 0) {
-    console.error("Error: No JS bundles found in .output/public/assets");
+  const indexHtmlPath = path.join(distDir, "index.html");
+  if (!fs.existsSync(indexHtmlPath)) {
+    console.error("Error: dist/index.html does not exist.");
     process.exit(1);
   }
 
-  console.log(`Found ${cssFiles.length} CSS files and ${jsFiles.length} JS entry files.`);
+  const indexHtmlContent = fs.readFileSync(indexHtmlPath, "utf-8");
 
-  const indexHtmlContent = generateIndexHtml(cssFiles, jsFiles);
-  const notFoundHtmlContent = generate404Html();
+  // 1. Write 404.html and .nojekyll
+  fs.writeFileSync(path.join(distDir, "404.html"), generate404Html(), "utf-8");
+  fs.writeFileSync(path.join(distDir, ".nojekyll"), "", "utf-8");
 
-  // 1. Write index.html and 404.html to .output/public
-  fs.writeFileSync(path.join(outputPublicDir, "index.html"), indexHtmlContent, "utf-8");
-  fs.writeFileSync(path.join(outputPublicDir, "404.html"), notFoundHtmlContent, "utf-8");
-  fs.writeFileSync(path.join(outputPublicDir, ".nojekyll"), "", "utf-8");
-
-  // 2. Pre-generate sub-routes static files so direct access also works directly
+  // 2. Pre-generate known sub-routes as static files so direct access / reload works on GitHub Pages
   const knownRoutes = [
-    { path: "staff", title: "Staff Directory — Hospital Hub" },
-    { path: "stress-test", title: "Exercise Stress Test — Hospital Hub" },
-    { path: "holter", title: "24H Holter Monitoring — Hospital Hub" },
-    { path: "guideline", title: "Clinical Guidelines — Hospital Hub" },
-    { path: "stock-take", title: "Stock Take Management — Hospital Hub" },
-    { path: "echocardiogram", title: "Echocardiogram — Hospital Hub" },
+    "staff",
+    "stress-test",
+    "holter",
+    "guideline",
+    "stock-take",
+    "echocardiogram",
   ];
 
   for (const route of knownRoutes) {
-    const routeHtml = generateIndexHtml(
-      cssFiles.map((c) => `../${c}`),
-      jsFiles.map((j) => `../${j}`),
-      route.title,
-    );
+    // Write dist/[route].html
+    fs.writeFileSync(path.join(distDir, `${route}.html`), indexHtmlContent, "utf-8");
 
-    // Write [route].html
-    fs.writeFileSync(path.join(outputPublicDir, `${route.path}.html`), indexHtmlContent, "utf-8");
-
-    // Write [route]/index.html
-    const routeDir = path.join(outputPublicDir, route.path);
+    // Write dist/[route]/index.html
+    const routeDir = path.join(distDir, route);
     if (!fs.existsSync(routeDir)) {
       fs.mkdirSync(routeDir, { recursive: true });
     }
-    fs.writeFileSync(path.join(routeDir, "index.html"), routeHtml, "utf-8");
+    fs.writeFileSync(path.join(routeDir, "index.html"), indexHtmlContent, "utf-8");
   }
 
-  // 3. Mirror all files to dist/
-  if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true, force: true });
+  // 3. Ensure static public assets (favicon, images, etc.) are in dist/
+  if (fs.existsSync(publicDir)) {
+    copyDirectoryRecursive(publicDir, distDir);
   }
-  copyDirectoryRecursive(outputPublicDir, distDir);
 
-  console.log("Successfully prepared GitHub Pages static output in both .output/public and dist/");
+  console.log("Successfully prepared GitHub Pages static output in dist/");
 }
 
 prepareGitHubPages();
