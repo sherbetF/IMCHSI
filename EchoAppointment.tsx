@@ -31,7 +31,7 @@ import {
 export type AppointmentRequest = AppointmentRecord;
 
 export function EchoAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
+  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, isMounted } = useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
     isAdmin ? "tracker" : "request",
   );
@@ -66,26 +66,26 @@ export function EchoAppointment() {
 
   const facilityName = selectedFacility ? selectedFacility.name : null;
 
-  // Real-time Firestore sync with facility isolation
+  // Wait for FacilityContext to finish restoring the saved facility before
+  // opening a Firestore listener. This prevents a deep-link visit from briefly
+  // subscribing to every appointment in the database.
   useEffect(() => {
-    // Do not subscribe before FacilityContext has restored the user's facility.
-    // A null facility previously caused an unfiltered Firestore read on every
-    // deep route, followed by another subscription once localStorage loaded.
-    if (!facilityName && !isAdmin) {
+    if (!isMounted) return;
+
+    if (!selectedFacility) {
       setRequests([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-
     const unsub = subscribeToAppointments("echo", facilityName, isAdmin, (data) => {
       setRequests(data);
       setLoading(false);
     });
 
     return () => unsub();
-  }, [facilityName, isAdmin]);
+  }, [isMounted, selectedFacility, facilityName, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
