@@ -28,7 +28,6 @@ import {
   subscribeToAppointments,
   createAppointment,
   updateAppointment,
-  seedInitialDataIfEmpty,
   AppointmentRecord,
 } from "@/services/firebaseAppointments";
 
@@ -94,7 +93,6 @@ export function HolterAppointment() {
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
-    seedInitialDataIfEmpty();
     setLoading(true);
 
     const unsub = subscribeToAppointments(

@@ -153,12 +153,15 @@ export function subscribeToAppointments(
   const colRef = collection(db, colName);
 
   let q;
-  if (isAdmin || !facilityName) {
-    // Admin sees all facilities' appointments; if no specific facility is chosen, fetch all
+  if (isAdmin) {
     q = query(colRef);
-  } else {
-    // Isolated: non-admin only queries their selected facility
+  } else if (facilityName) {
     q = query(colRef, where("facilityName", "==", facilityName));
+  } else {
+    // Non-admin without selected facility context loaded yet:
+    // Do not run an unfiltered query. Pass empty array.
+    callback([]);
+    return () => {};
   }
 
   const unsubscribe = onSnapshot(
@@ -174,6 +177,7 @@ export function subscribeToAppointments(
     },
     (error) => {
       console.error(`Error in ${colName} subscription:`, error);
+      callback([]);
     },
   );
 

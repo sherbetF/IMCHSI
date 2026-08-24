@@ -34,18 +34,4 @@ function getOrCreateFirestore() {
 
 export const db = getOrCreateFirestore();
 
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, "test", "connection"));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message.includes("offline") || error.message.includes("unavailable"))
-    ) {
-      console.warn("Firestore connection check:", error.message);
-    }
-  }
-}
-testConnection();
-
 export default app;
