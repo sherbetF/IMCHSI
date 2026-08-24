@@ -8,7 +8,7 @@ export interface UnifiedRequestNotification {
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/staff" | "/stress-test" | "/holter";
+  route: "/echo" | "/stress-test" | "/holter";
 }
 
 const ECHO_KEY = "hsi_echo_requests_v2";
@@ -273,7 +273,7 @@ export function getAllNewAppointmentRequests(): UnifiedRequestNotification[] {
         facilityName: r.facilityName,
         createdAt: r.createdAt,
         status: r.status,
-        route: "/staff",
+        route: "/echo",
       });
     }
   });

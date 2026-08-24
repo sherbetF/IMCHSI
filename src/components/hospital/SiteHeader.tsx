@@ -12,8 +12,6 @@ import {
   Bell,
   CheckCheck,
   ExternalLink,
-  Info,
-  Construction,
   Menu,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -30,8 +28,9 @@ import {
 const nav = [
   { label: "Home", to: "/" as const },
   { label: "Appointment", to: "/" as const, isAppointmentScroll: true },
-  { label: "Echo Calculator", to: "/echocardiogram" as const, isRestricted: true },
-  { label: "Guideline", to: "/guideline" as const, isRestricted: true },
+  { label: "Echocardiogram", to: "/echo" as const },
+  { label: "Stress Test", to: "/stress-test" as const },
+  { label: "Holter", to: "/holter" as const },
 ];
 
 function useClock() {
@@ -49,7 +48,6 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function SiteHeader() {
   const { selectedFacility, setSelectedFacility, isAdmin, openModal } = useFacility();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [restrictedModalItem, setRestrictedModalItem] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<UnifiedRequestNotification[]>([]);
@@ -207,19 +205,6 @@ export function SiteHeader() {
                     key={item.label}
                     type="button"
                     onClick={handleAppointmentClick}
-                    className="text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer"
-                  >
-                    {item.label}
-                  </button>
-                );
-              }
-
-              if (item.isRestricted) {
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => setRestrictedModalItem(item.label)}
                     className="text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer"
                   >
                     {item.label}
@@ -418,22 +403,6 @@ export function SiteHeader() {
                 );
               }
 
-              if (item.isRestricted) {
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setRestrictedModalItem(item.label);
-                    }}
-                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-foreground hover:bg-accent hover:text-primary transition-colors"
-                  >
-                    {item.label}
-                  </button>
-                );
-              }
-
               return (
                 <Link
                   key={item.to}
@@ -546,50 +515,6 @@ export function SiteHeader() {
               <button
                 onClick={() => setIsContactModalOpen(false)}
                 className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Under Development Notice Modal */}
-      {restrictedModalItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-2xl border border-primary/20 bg-surface p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
-            <button
-              onClick={() => setRestrictedModalItem(null)}
-              className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-3.5 border-b border-border pb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                <Info className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                  <Construction className="h-3 w-3" /> Under Development
-                </div>
-                <h3 className="text-lg font-bold text-heading mt-1">{restrictedModalItem}</h3>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 text-sm">
-              <div className="rounded-xl border border-border/80 bg-background/60 p-5">
-                <p className="leading-relaxed font-medium text-foreground text-center">
-                  This site is still under development . If you have any inquiries , please contact
-                  MA Shafiq IMC :)
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setRestrictedModalItem(null)}
-                className="w-full sm:w-auto rounded-xl bg-primary px-6 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
               >
                 Close
               </button>

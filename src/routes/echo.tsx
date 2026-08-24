@@ -3,14 +3,14 @@ import { SiteHeader } from "@/components/hospital/SiteHeader";
 import { EchoAppointment } from "@/components/hospital/EchoAppointment";
 import { SiteFooter } from "@/components/hospital/SiteFooter";
 
-export const Route = createFileRoute("/staff")({
+export const Route = createFileRoute("/echo")({
   head: () => ({
     meta: [
       { title: "Echocardiogram Appointment Request — Hospital Sultan Ismail" },
       {
         name: "description",
         content:
-          "Request an echocardiogram appointment for clinical cardiac evaluation, TTE, TEE, or stress echo.",
+          "Request an echocardiogram appointment for clinical cardiac evaluation, TTE, TEE, or stress echo at Hospital Sultan Ismail.",
       },
       {
         property: "og:title",
@@ -25,10 +25,10 @@ export const Route = createFileRoute("/staff")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: StaffPage,
+  component: EchoPage,
 });
 
-function StaffPage() {
+function EchoPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />

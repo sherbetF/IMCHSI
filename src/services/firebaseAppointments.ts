@@ -27,7 +27,7 @@ export interface UnifiedRequestNotification {
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/staff" | "/stress-test" | "/holter";
+  route: "/echo" | "/stress-test" | "/holter";
 }
 
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
@@ -255,7 +255,7 @@ export function subscribeToAllPendingNotifications(
       facilityName: string;
       createdAt: string;
       status: string;
-      route: "/staff" | "/stress-test" | "/holter";
+      route: "/echo" | "/stress-test" | "/holter";
     }> = [];
 
     echoItems.forEach((r) => {
@@ -270,7 +270,7 @@ export function subscribeToAllPendingNotifications(
           facilityName: r.facilityName,
           createdAt: r.createdAt,
           status: r.status,
-          route: "/staff",
+          route: "/echo",
         });
       }
     });

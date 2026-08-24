@@ -28,7 +28,7 @@ export const Route = createFileRoute("/")({
 
 const primaryModules = [
   {
-    to: "/staff" as const,
+    to: "/echo" as const,
     icon: CalendarHeart,
     label: "Module 01",
     title: "Echocardiogram",
