@@ -28,14 +28,15 @@ npm run dev
 This project is fully configured for automated deployment to **GitHub Pages** via GitHub Actions.
 
 ### Quick Setup Steps on GitHub:
+
 1. Push this repository to GitHub on branch `main` or `master`.
 2. On GitHub, go to your repository **Settings** → **Pages** (under the "Code and automation" sidebar).
 3. Under **Build and deployment** → **Source**, select **GitHub Actions**.
 4. The workflow in `.github/workflows/deploy.yml` will automatically build and publish your site whenever you push changes to `main`!
 
 ### Features configured for GitHub Pages:
+
 - **Automatic subpath base resolution**: Supports both `https://<username>.github.io/<repo-name>/` and custom domains.
 - **Client-Side SPA Routing fallback**: Included `404.html` redirect and route static HTML pages to prevent 404 errors when reloading subpages like `/staff`, `/stress-test`, or `/holter`.
 - **Bypass Jekyll**: `.nojekyll` included in the build output to ensure all static assets load properly.
 - **Build output**: Static bundle is generated into `dist/` and `.output/public/`.
-
