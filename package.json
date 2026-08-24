@@ -4,7 +4,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 3000",
+    "dev": "vite --config vite.config.spa.ts --host 0.0.0.0 --port 3000",
     "build": "vite build --config vite.config.spa.ts && node scripts/prepare-gh-pages.js",
     "build:gh-pages": "vite build --config vite.config.spa.ts && node scripts/prepare-gh-pages.js",
     "build:ssr": "vite build",
