@@ -4,88 +4,150 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.resolve(rootDir, "dist");
 const publicDir = path.resolve(rootDir, "public");
 
-function generate404Html() {
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Hospital Hub</title>
-    <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-      var pathSegmentsToKeep = 1;
-      var l = window.location;
-      
-      // If hosted on custom domain or root domain, keep 0 segments
-      if (!l.hostname.endsWith('.github.io')) {
-        pathSegmentsToKeep = 0;
-      }
-      
-      var newPath = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
-        l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash;
-        
-      l.replace(
-        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + newPath
-      );
-    </script>
-  </head>
-  <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc;">
-    <div style="text-align: center; padding: 20px;">
-      <h2 style="margin-bottom: 8px;">Loading Hospital Hub...</h2>
-      <p style="color: #94a3b8; font-size: 14px;">Redirecting you to the requested page.</p>
-    </div>
-  </body>
-</html>`;
-}
-
+/**
+ * Recursively copy a directory.
+ */
 function copyDirectoryRecursive(source, target) {
-  if (!fs.existsSync(source)) return;
-  if (!fs.existsSync(target)) {
-    fs.mkdirSync(target, { recursive: true });
+  if (!fs.existsSync(source)) {
+    return;
   }
 
-  const entries = fs.readdirSync(source, { withFileTypes: true });
+  fs.mkdirSync(target, { recursive: true });
+
+  const entries = fs.readdirSync(source, {
+    withFileTypes: true,
+  });
+
   for (const entry of entries) {
-    const srcPath = path.join(source, entry.name);
-    const destPath = path.join(target, entry.name);
+    const sourcePath = path.join(source, entry.name);
+    const targetPath = path.join(target, entry.name);
 
     if (entry.isDirectory()) {
-      copyDirectoryRecursive(srcPath, destPath);
+      copyDirectoryRecursive(sourcePath, targetPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      fs.copyFileSync(sourcePath, targetPath);
     }
   }
 }
 
+/**
+ * Prepare GitHub Pages deployment.
+ */
 function prepareGitHubPages() {
   console.log("Preparing GitHub Pages distribution...");
 
+  // ------------------------------------------------------------
+  // 1. Verify Vite build exists
+  // ------------------------------------------------------------
+
   if (!fs.existsSync(distDir)) {
-    console.error("Error: dist directory does not exist. Run vite build first.");
+    console.error("ERROR: dist directory does not exist.");
+    console.error("Run the Vite build first.");
     process.exit(1);
   }
 
   const indexHtmlPath = path.join(distDir, "index.html");
+
   if (!fs.existsSync(indexHtmlPath)) {
-    console.error("Error: dist/index.html does not exist.");
+    console.error("ERROR: dist/index.html does not exist.");
     process.exit(1);
   }
 
-  const indexHtmlContent = fs.readFileSync(indexHtmlPath, "utf-8");
+  // Read the finished Vite index.html.
+  const indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
 
-  // 1. Write 404.html and .nojekyll
-  fs.writeFileSync(path.join(distDir, "404.html"), generate404Html(), "utf-8");
-  fs.writeFileSync(path.join(distDir, ".nojekyll"), "", "utf-8");
+  // ------------------------------------------------------------
+  // 2. Create .nojekyll
+  // ------------------------------------------------------------
 
-  // 2. Pre-generate known sub-routes as static files so direct access / reload works on GitHub Pages
-  const knownRoutes = [
+  fs.writeFileSync(
+    path.join(distDir, ".nojekyll"),
+    "",
+    "utf8"
+  );
+
+  // ------------------------------------------------------------
+  // 3. Create 404.html
+  //
+  // GitHub Pages has no server-side React routing.
+  // If someone enters a route directly, GitHub Pages can return
+  // this file instead of the React application.
+  // ------------------------------------------------------------
+
+  const notFoundHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospital Hub</title>
+
+  <script>
+    // GitHub Pages SPA fallback.
+    // Custom domain = keep zero path segments.
+
+    const location = window.location;
+
+    const redirectPath =
+      location.pathname +
+      location.search +
+      location.hash;
+
+    // Redirect to the root SPA while preserving the requested route.
+    const redirectUrl =
+      location.protocol +
+      "//" +
+      location.host +
+      "/?/" +
+      redirectPath.replace(/^\\//, "").replace(/&/g, "~and~");
+
+    location.replace(redirectUrl);
+  </script>
+</head>
+
+<body>
+  <div
+    style="
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    "
+  >
+    Loading...
+  </div>
+</body>
+</html>`;
+
+  fs.writeFileSync(
+    path.join(distDir, "404.html"),
+    notFoundHtml,
+    "utf8"
+  );
+
+  // ------------------------------------------------------------
+  // 4. Generate physical directories for all application routes
+  //
+  // This is the important part.
+  //
+  // /staff
+  // /stress-test
+  // /holter
+  //
+  // will physically exist as:
+  //
+  // dist/staff/index.html
+  // dist/stress-test/index.html
+  // dist/holter/index.html
+  // ------------------------------------------------------------
+
+  const routes = [
     "staff",
     "stress-test",
     "holter",
@@ -94,24 +156,62 @@ function prepareGitHubPages() {
     "echocardiogram",
   ];
 
-  for (const route of knownRoutes) {
-    // Write dist/[route].html
-    fs.writeFileSync(path.join(distDir, `${route}.html`), indexHtmlContent, "utf-8");
+  for (const route of routes) {
+    const routeDirectory = path.join(distDir, route);
 
-    // Write dist/[route]/index.html
-    const routeDir = path.join(distDir, route);
-    if (!fs.existsSync(routeDir)) {
-      fs.mkdirSync(routeDir, { recursive: true });
-    }
-    fs.writeFileSync(path.join(routeDir, "index.html"), indexHtmlContent, "utf-8");
+    fs.mkdirSync(routeDirectory, {
+      recursive: true,
+    });
+
+    fs.writeFileSync(
+      path.join(routeDirectory, "index.html"),
+      indexHtml,
+      "utf8"
+    );
+
+    console.log(`Created route: /${route}`);
   }
 
-  // 3. Ensure static public assets (favicon, images, etc.) are in dist/
+  // ------------------------------------------------------------
+  // 5. Also create .html versions
+  //
+  // This isn't strictly necessary for directory URLs,
+  // but keeps compatibility with static hosting.
+  // ------------------------------------------------------------
+
+  for (const route of routes) {
+    fs.writeFileSync(
+      path.join(distDir, `${route}.html`),
+      indexHtml,
+      "utf8"
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 6. Copy public assets
+  // ------------------------------------------------------------
+
   if (fs.existsSync(publicDir)) {
     copyDirectoryRecursive(publicDir, distDir);
   }
 
-  console.log("Successfully prepared GitHub Pages static output in dist/");
+  // ------------------------------------------------------------
+  // 7. Print deployment structure
+  // ------------------------------------------------------------
+
+  console.log("");
+  console.log("GitHub Pages preparation completed.");
+  console.log("");
+  console.log("Routes generated:");
+
+  for (const route of routes) {
+    console.log(`  https://imchsi.com/${route}`);
+  }
+
+  console.log("");
+  console.log("Root:");
+  console.log("  https://imchsi.com/");
+  console.log("");
 }
 
 prepareGitHubPages();
