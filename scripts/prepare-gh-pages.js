@@ -65,15 +65,71 @@ function prepareGitHubPages() {
   // 2. Create .nojekyll
   // ------------------------------------------------------------
 
-  fs.writeFileSync(path.join(distDir, ".nojekyll"), "", "utf8");
+  fs.writeFileSync(
+    path.join(distDir, ".nojekyll"),
+    "",
+    "utf8"
+  );
 
   // ------------------------------------------------------------
-  // 3. Create a true SPA fallback
+  // 3. Create 404.html
+  //
+  // GitHub Pages has no server-side React routing.
+  // If someone enters a route directly, GitHub Pages can return
+  // this file instead of the React application.
   // ------------------------------------------------------------
-  // GitHub Pages serves 404.html for paths that do not physically exist.
-  // Using the already-built SPA HTML here keeps window.location.pathname
-  // unchanged so TanStack Router can resolve the requested URL directly.
-  fs.writeFileSync(path.join(distDir, "404.html"), indexHtml, "utf8");
+
+  const notFoundHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospital Hub</title>
+
+  <script>
+    // GitHub Pages SPA fallback.
+    // Custom domain = keep zero path segments.
+
+    const location = window.location;
+
+    const redirectPath =
+      location.pathname +
+      location.search +
+      location.hash;
+
+    // Redirect to the root SPA while preserving the requested route.
+    const redirectUrl =
+      location.protocol +
+      "//" +
+      location.host +
+      "/?/" +
+      redirectPath.replace(/^\\//, "").replace(/&/g, "~and~");
+
+    location.replace(redirectUrl);
+  </script>
+</head>
+
+<body>
+  <div
+    style="
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    "
+  >
+    Loading...
+  </div>
+</body>
+</html>`;
+
+  fs.writeFileSync(
+    path.join(distDir, "404.html"),
+    notFoundHtml,
+    "utf8"
+  );
 
   // ------------------------------------------------------------
   // 4. Generate physical directories for all application routes
@@ -91,7 +147,14 @@ function prepareGitHubPages() {
   // dist/holter/index.html
   // ------------------------------------------------------------
 
-  const routes = ["echo", "stress-test", "holter"];
+  const routes = [
+    "staff",
+    "stress-test",
+    "holter",
+    "guideline",
+    "stock-take",
+    "echocardiogram",
+  ];
 
   for (const route of routes) {
     const routeDirectory = path.join(distDir, route);
@@ -100,7 +163,11 @@ function prepareGitHubPages() {
       recursive: true,
     });
 
-    fs.writeFileSync(path.join(routeDirectory, "index.html"), indexHtml, "utf8");
+    fs.writeFileSync(
+      path.join(routeDirectory, "index.html"),
+      indexHtml,
+      "utf8"
+    );
 
     console.log(`Created route: /${route}`);
   }
@@ -113,20 +180,19 @@ function prepareGitHubPages() {
   // ------------------------------------------------------------
 
   for (const route of routes) {
-    fs.writeFileSync(path.join(distDir, `${route}.html`), indexHtml, "utf8");
+    fs.writeFileSync(
+      path.join(distDir, `${route}.html`),
+      indexHtml,
+      "utf8"
+    );
   }
 
   // ------------------------------------------------------------
-  // 6. Copy public assets & root CNAME
+  // 6. Copy public assets
   // ------------------------------------------------------------
 
   if (fs.existsSync(publicDir)) {
     copyDirectoryRecursive(publicDir, distDir);
-  }
-
-  const rootCnamePath = path.join(rootDir, "CNAME");
-  if (fs.existsSync(rootCnamePath)) {
-    fs.copyFileSync(rootCnamePath, path.join(distDir, "CNAME"));
   }
 
   // ------------------------------------------------------------

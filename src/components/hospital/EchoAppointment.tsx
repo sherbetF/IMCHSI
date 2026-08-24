@@ -65,20 +65,23 @@ export function EchoAppointment() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const facilityName = selectedFacility ? selectedFacility.name : null;
-
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     seedInitialDataIfEmpty();
     setLoading(true);
 
-    const unsub = subscribeToAppointments("echo", facilityName, isAdmin, (data) => {
-      setRequests(data);
-      setLoading(false);
-    });
+    const unsub = subscribeToAppointments(
+      "echo",
+      selectedFacility ? selectedFacility.name : null,
+      isAdmin,
+      (data) => {
+        setRequests(data);
+        setLoading(false);
+      },
+    );
 
     return () => unsub();
-  }, [facilityName, isAdmin]);
+  }, [selectedFacility?.name, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {

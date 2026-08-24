@@ -174,23 +174,6 @@ export function subscribeToAppointments(
     },
     (error) => {
       console.error(`Error in ${colName} subscription:`, error);
-      // Fallback to local default requests so the page never hangs or blocks
-      if (collectionName === "echo") {
-        const local = defaultEchoRequests.filter((r) =>
-          isAdmin || !facilityName ? true : r.facilityName === facilityName,
-        );
-        callback(local);
-      } else if (collectionName === "stress") {
-        const local = defaultStressRequests.filter((r) =>
-          isAdmin || !facilityName ? true : r.facilityName === facilityName,
-        );
-        callback(local);
-      } else if (collectionName === "holter") {
-        const local = defaultHolterRequests.filter((r) =>
-          isAdmin || !facilityName ? true : r.facilityName === facilityName,
-        );
-        callback(local);
-      }
     },
   );
 
