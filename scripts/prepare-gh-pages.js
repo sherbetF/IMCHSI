@@ -65,11 +65,7 @@ function prepareGitHubPages() {
   // 2. Create .nojekyll
   // ------------------------------------------------------------
 
-  fs.writeFileSync(
-    path.join(distDir, ".nojekyll"),
-    "",
-    "utf8"
-  );
+  fs.writeFileSync(path.join(distDir, ".nojekyll"), "", "utf8");
 
   // ------------------------------------------------------------
   // 3. Create 404.html
@@ -125,11 +121,7 @@ function prepareGitHubPages() {
 </body>
 </html>`;
 
-  fs.writeFileSync(
-    path.join(distDir, "404.html"),
-    notFoundHtml,
-    "utf8"
-  );
+  fs.writeFileSync(path.join(distDir, "404.html"), notFoundHtml, "utf8");
 
   // ------------------------------------------------------------
   // 4. Generate physical directories for all application routes
@@ -147,14 +139,7 @@ function prepareGitHubPages() {
   // dist/holter/index.html
   // ------------------------------------------------------------
 
-  const routes = [
-    "staff",
-    "stress-test",
-    "holter",
-    "guideline",
-    "stock-take",
-    "echocardiogram",
-  ];
+  const routes = ["echo", "stress-test", "holter"];
 
   for (const route of routes) {
     const routeDirectory = path.join(distDir, route);
@@ -163,11 +148,7 @@ function prepareGitHubPages() {
       recursive: true,
     });
 
-    fs.writeFileSync(
-      path.join(routeDirectory, "index.html"),
-      indexHtml,
-      "utf8"
-    );
+    fs.writeFileSync(path.join(routeDirectory, "index.html"), indexHtml, "utf8");
 
     console.log(`Created route: /${route}`);
   }
@@ -180,19 +161,20 @@ function prepareGitHubPages() {
   // ------------------------------------------------------------
 
   for (const route of routes) {
-    fs.writeFileSync(
-      path.join(distDir, `${route}.html`),
-      indexHtml,
-      "utf8"
-    );
+    fs.writeFileSync(path.join(distDir, `${route}.html`), indexHtml, "utf8");
   }
 
   // ------------------------------------------------------------
-  // 6. Copy public assets
+  // 6. Copy public assets & root CNAME
   // ------------------------------------------------------------
 
   if (fs.existsSync(publicDir)) {
     copyDirectoryRecursive(publicDir, distDir);
+  }
+
+  const rootCnamePath = path.join(rootDir, "CNAME");
+  if (fs.existsSync(rootCnamePath)) {
+    fs.copyFileSync(rootCnamePath, path.join(distDir, "CNAME"));
   }
 
   // ------------------------------------------------------------
