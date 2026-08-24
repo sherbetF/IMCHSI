@@ -25,7 +25,6 @@ import {
   subscribeToAppointments,
   createAppointment,
   updateAppointment,
-  seedInitialDataIfEmpty,
   AppointmentRecord,
 } from "@/services/firebaseAppointments";
 
@@ -69,7 +68,15 @@ export function EchoAppointment() {
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
-    seedInitialDataIfEmpty();
+    // Do not subscribe before FacilityContext has restored the user's facility.
+    // A null facility previously caused an unfiltered Firestore read on every
+    // deep route, followed by another subscription once localStorage loaded.
+    if (!facilityName && !isAdmin) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const unsub = subscribeToAppointments("echo", facilityName, isAdmin, (data) => {

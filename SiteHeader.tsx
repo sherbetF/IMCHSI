@@ -61,6 +61,13 @@ export function SiteHeader() {
   }, []);
 
   useEffect(() => {
+    // Wait until FacilityContext has restored localStorage. Otherwise the
+    // header briefly opens three unfiltered Firestore listeners on every route.
+    if (!isMounted || (!selectedFacility?.name && !isAdmin)) {
+      setNotifications([]);
+      return;
+    }
+
     const unsub = subscribeToAllPendingNotifications(
       selectedFacility?.name || null,
       isAdmin,
@@ -78,7 +85,7 @@ export function SiteHeader() {
       unsub();
       window.removeEventListener("hsi_requests_updated", handleUpdate);
     };
-  }, [selectedFacility?.name, isAdmin]);
+  }, [selectedFacility?.name, isAdmin, isMounted]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
