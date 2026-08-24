@@ -66,10 +66,15 @@ export function FacilitySelectModal() {
   );
 
   useEffect(() => {
-    if (filteredFacilities.length > 0 && !filteredFacilities.includes(selectedName)) {
-      setSelectedName(filteredFacilities[0]);
+    const currentGroup = FACILITIES_DATA.find((g) => g.category === selectedCategory);
+    const facilities = currentGroup ? currentGroup.items : [];
+    const filtered = facilities.filter((facility) =>
+      facility.toLowerCase().includes(searchQuery.toLowerCase().trim()),
+    );
+    if (filtered.length > 0 && !filtered.includes(selectedName)) {
+      setSelectedName(filtered[0]);
     }
-  }, [searchQuery, selectedCategory, filteredFacilities, selectedName]);
+  }, [searchQuery, selectedCategory, selectedName]);
 
   if (!isModalOpen) return null;
 

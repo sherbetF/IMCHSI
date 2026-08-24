@@ -1,6 +1,6 @@
 {
-  "name": "Hospital Hub",
-  "description": "Hospital management hub, staff directory, echocardiogram reporting, and stock take application",
+  "name": "Internal Medicine - Hospital Sultan Ismail",
+  "description": "Non-Invasive Cardiovascular Laboratory Appointment Request Portal for Hospital Sultan Ismail: Echocardiogram, Exercise Stress Test, and 24 Hours Holter Monitoring.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
