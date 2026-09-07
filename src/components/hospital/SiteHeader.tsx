@@ -13,6 +13,7 @@ import {
   CheckCheck,
   ExternalLink,
   Menu,
+  AlertTriangle,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
@@ -132,6 +133,13 @@ export function SiteHeader() {
 
   return (
     <header>
+      <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 py-0.5 text-center text-[11px] sm:text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5 leading-tight">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span>
+          This site is still under development . If you have any inquiries , please contact MA
+          Shafiq IMC :) (ext : *80064)
+        </span>
+      </div>
       <div className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2 px-5 py-2">
           <div className="flex flex-wrap items-center gap-3">
