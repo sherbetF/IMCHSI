@@ -6,6 +6,8 @@ import {
   User,
   Phone,
   AlertCircle,
+  AlertTriangle,
+  FileText,
   CheckCircle2,
   Send,
   Search,
@@ -17,16 +19,19 @@ import {
   CalendarCheck,
   Check,
   X,
+  XCircle,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { useFacility } from "@/context/FacilityContext";
+import { toast } from "sonner";
 import {
   subscribeToAppointments,
   createAppointment,
   updateAppointment,
   AppointmentRecord,
 } from "@/services/firebaseAppointments";
+import { EchoFormModal } from "./EchoFormModal";
 
 export type AppointmentRequest = AppointmentRecord;
 
@@ -38,6 +43,7 @@ export function EchoAppointment() {
   const [requests, setRequests] = useState<AppointmentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submittedRef, setSubmittedRef] = useState<AppointmentRequest | null>(null);
+  const [isFadingOut, setIsFadingOut] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Admin schedule modal state
@@ -45,6 +51,11 @@ export function EchoAppointment() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [rawDate, setRawDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("09:00 AM");
+
+  // Admin rejection modal state
+  const [rejectingReq, setRejectingReq] = useState<AppointmentRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectedBy, setRejectedBy] = useState("");
 
   // Form State
   const [formData, setFormData] = useState({
@@ -63,6 +74,14 @@ export function EchoAppointment() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+
+  // Notice modal state
+  const [showNoticeModal, setShowNoticeModal] = useState(false);
+  const [pendingReq, setPendingReq] = useState<AppointmentRequest | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form preview modal state
+  const [selectedFormReq, setSelectedFormReq] = useState<AppointmentRecord | null>(null);
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
@@ -88,13 +107,23 @@ export function EchoAppointment() {
     }
   }, [isAdmin]);
 
-  // Auto-dismiss submitted reference banner after 3 seconds
+  // Auto-dismiss submitted reference banner after 1 minute (60s), then gradually disappear
   useEffect(() => {
     if (submittedRef) {
+      setIsFadingOut(false);
       const timer = setTimeout(() => {
+        setIsFadingOut(true);
+      }, 60000);
+
+      const dismissTimer = setTimeout(() => {
         setSubmittedRef(null);
-      }, 3000);
-      return () => clearTimeout(timer);
+        setIsFadingOut(false);
+      }, 61000);
+
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(dismissTimer);
+      };
     }
   }, [submittedRef]);
 
@@ -148,9 +177,16 @@ export function EchoAppointment() {
       createdAt: new Date().toISOString().replace("T", " ").substring(0, 16),
     };
 
+    setPendingReq(newReq);
+    setShowNoticeModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!pendingReq) return;
+    setIsSubmitting(true);
     try {
-      await createAppointment("echo", newReq);
-      setSubmittedRef(newReq);
+      await createAppointment("echo", pendingReq);
+      setSubmittedRef(pendingReq);
 
       // Reset Form
       setFormData({
@@ -165,8 +201,12 @@ export function EchoAppointment() {
         clinicalIndication: "",
         diagnosis: "",
       });
+      setShowNoticeModal(false);
+      setPendingReq(null);
     } catch (err) {
       console.error("Failed to create appointment in Firebase:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -180,10 +220,12 @@ export function EchoAppointment() {
         scheduledDate: fullSchedule,
         status: "Scheduled",
       });
+      toast.success(`Successfully scheduled appointment for ${schedulingReq.patientName}`);
       setSchedulingReq(null);
       setScheduleDate("");
     } catch (err) {
       console.error("Failed to update schedule in Firebase:", err);
+      toast.error("Failed to schedule appointment");
     }
   };
 
@@ -191,8 +233,29 @@ export function EchoAppointment() {
     if (!isAdmin) return;
     try {
       await updateAppointment("echo", id, { status: newStatus });
+      toast.success(`Updated status to ${newStatus}`);
     } catch (err) {
       console.error("Failed to update status:", err);
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingReq || !rejectReason.trim() || !rejectedBy.trim()) return;
+    try {
+      await updateAppointment("echo", rejectingReq.id, {
+        status: "Rejected",
+        rejectReason: rejectReason.trim(),
+        rejectedBy: rejectedBy.trim(),
+      });
+      toast.error(`Rejected appointment request for ${rejectingReq.patientName}`);
+      setRejectingReq(null);
+      setRejectReason("");
+      setRejectedBy("");
+    } catch (err) {
+      console.error("Failed to reject request:", err);
+      toast.error("Failed to reject request");
     }
   };
 
@@ -219,8 +282,8 @@ export function EchoAppointment() {
           </p>
         </div>
 
-        <div className="flex gap-2 rounded-lg border border-border bg-surface p-1">
-          {!isAdmin && (
+        {!isAdmin && (
+          <div className="flex gap-2 rounded-lg border border-border bg-surface p-1">
             <button
               onClick={() => setActiveTab("request")}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
@@ -232,24 +295,30 @@ export function EchoAppointment() {
               <CalendarIcon className="h-4 w-4" />
               Book Appointment
             </button>
-          )}
-          <button
-            onClick={() => setActiveTab("tracker")}
-            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-              activeTab === "tracker" || isAdmin
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarCheck className="h-4 w-4" />
-            Track Requests ({requests.length})
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab("tracker")}
+              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                activeTab === "tracker"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarCheck className="h-4 w-4" />
+              Track Requests ({requests.length})
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal Banner after submission */}
       {submittedRef && (
-        <div className="mt-6 rounded-xl border border-success/30 bg-success-soft p-4 sm:p-5 transition-all duration-500 animate-in fade-in slide-in-from-top-2">
+        <div
+          className={`mt-6 rounded-xl border border-success/30 bg-success-soft p-4 sm:p-5 transition-all duration-1000 ease-in-out ${
+            isFadingOut
+              ? "opacity-0 -translate-y-2 scale-95 pointer-events-none"
+              : "opacity-100 translate-y-0 scale-100 animate-in fade-in slide-in-from-top-2"
+          }`}
+        >
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
@@ -264,7 +333,10 @@ export function EchoAppointment() {
               </div>
             </div>
             <button
-              onClick={() => setSubmittedRef(null)}
+              onClick={() => {
+                setSubmittedRef(null);
+                setIsFadingOut(false);
+              }}
               className="rounded-md p-1 text-muted-foreground hover:bg-success/10 hover:text-foreground transition-colors"
               title="Dismiss"
             >
@@ -376,8 +448,8 @@ export function EchoAppointment() {
                       }
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     >
-                      <option value="Routine">Routine (Within 4–6 weeks)</option>
-                      <option value="Urgent">Urgent (Within 1–2 weeks)</option>
+                      <option value="Routine">Routine (Within 2-4 months)</option>
+                      <option value="Urgent">Urgent (Within 1 month)</option>
                     </select>
                   </div>
 
@@ -582,43 +654,70 @@ export function EchoAppointment() {
                               ? "bg-success-soft text-success"
                               : r.status === "Pending Confirmation"
                                 ? "bg-warning-soft text-warning"
-                                : "bg-accent text-accent-foreground"
+                                : r.status === "Rejected"
+                                  ? "bg-destructive/10 text-destructive border border-destructive/20"
+                                  : "bg-accent text-accent-foreground"
                         }`}
                       >
                         {r.status}
                       </span>
 
-                      {r.scheduledDate && (
+                      {r.scheduledDate && r.scheduledDate !== "----------" && (
                         <span className="hidden sm:flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
                           <CalendarCheck className="h-3 w-3" />
                           <span>{r.scheduledDate}</span>
                         </span>
                       )}
 
-                      {isAdmin && (
-                        <button
-                          onClick={() => {
-                            setSchedulingReq(r);
-                            const existingDate = r.scheduledDate?.split(" @ ")[0] || "";
-                            let formatted = existingDate;
-                            let raw = "";
-                            if (existingDate.includes("/")) {
-                              const [dd, mm, yyyy] = existingDate.split("/");
-                              formatted = existingDate;
-                              raw = `${yyyy}-${mm}-${dd}`;
-                            } else if (existingDate.includes("-")) {
-                              const [yyyy, mm, dd] = existingDate.split("-");
-                              formatted = `${dd}/${mm}/${yyyy}`;
-                              raw = existingDate;
-                            }
-                            setScheduleDate(formatted);
-                            setRawDate(raw);
-                            setScheduleTime(r.scheduledDate?.split(" @ ")[1] || "09:00 AM");
-                          }}
-                          className="rounded-lg border border-primary/40 bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
-                        >
-                          {r.scheduledDate ? "Reschedule" : "Schedule"}
-                        </button>
+                      {((r.scheduledDate && r.scheduledDate !== "----------") ||
+                        r.status === "Scheduled") &&
+                        !isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFormReq(r)}
+                            className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 transition-colors shadow-xs"
+                            title="Download official Echocardiogram Request Form"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>Download Echo Form</span>
+                          </button>
+                        )}
+
+                      {isAdmin && r.status !== "Rejected" && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSchedulingReq(r);
+                              const existingDate =
+                                r.scheduledDate && r.scheduledDate !== "----------"
+                                  ? r.scheduledDate.split(" @ ")[0] || ""
+                                  : "";
+                              let formatted = existingDate;
+                              let raw = "";
+                              if (existingDate.includes("/")) {
+                                const [dd, mm, yyyy] = existingDate.split("/");
+                                formatted = existingDate;
+                                raw = `${yyyy}-${mm}-${dd}`;
+                              } else if (existingDate.includes("-")) {
+                                const [yyyy, mm, dd] = existingDate.split("-");
+                                formatted = `${dd}/${mm}/${yyyy}`;
+                                raw = existingDate;
+                              }
+                              setScheduleDate(formatted);
+                              setRawDate(raw);
+                              setScheduleTime(
+                                r.scheduledDate && r.scheduledDate !== "----------"
+                                  ? r.scheduledDate.split(" @ ")[1] || "09:00 AM"
+                                  : "09:00 AM",
+                              );
+                            }}
+                            className="rounded-lg border border-primary/40 bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                          >
+                            {r.scheduledDate && r.scheduledDate !== "----------"
+                              ? "Reschedule"
+                              : "Schedule"}
+                          </button>
+                        </div>
                       )}
 
                       <button
@@ -637,8 +736,23 @@ export function EchoAppointment() {
 
                   {/* Expanded Detail View */}
                   {isExpanded && (
-                    <div className="mt-2.5 rounded-lg border border-border bg-surface/80 p-3 text-xs space-y-2 animate-in fade-in duration-150">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground">
+                    <div className="mt-2.5 rounded-lg border border-border bg-surface/80 p-3 text-xs space-y-2 animate-in fade-in duration-150 relative">
+                      {isAdmin && r.status !== "Rejected" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingReq(r);
+                            setRejectReason("");
+                            setRejectedBy("");
+                          }}
+                          className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 transition-colors shadow-xs"
+                          title="Reject Appointment"
+                        >
+                          <X className="h-4 w-4 stroke-[2.5]" />
+                        </button>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pr-8">
                         <div>
                           <span className="font-bold text-heading">Procedure:</span>{" "}
                           {r.procedureType}
@@ -659,6 +773,23 @@ export function EchoAppointment() {
                         <span className="font-bold text-heading">Clinical Indication:</span>{" "}
                         <span className="text-foreground">{r.clinicalIndication}</span>
                       </div>
+
+                      {r.status === "Rejected" && (
+                        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs space-y-1 mt-2">
+                          <p className="font-bold text-destructive">Appointment Rejected</p>
+                          {r.rejectReason && (
+                            <p className="text-foreground">
+                              <span className="font-semibold">Reason:</span> {r.rejectReason}
+                            </p>
+                          )}
+                          {r.rejectedBy && (
+                            <p className="text-muted-foreground text-[11px]">
+                              Rejected by: {r.rejectedBy}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between border-t border-border/40 pt-1.5 text-[11px] text-muted-foreground">
                         <span>
                           Facility: {r.facilityName} ({r.facilityCategory || "Healthcare Facility"})
@@ -666,23 +797,31 @@ export function EchoAppointment() {
                         <span>Submitted: {r.createdAt}</span>
                       </div>
 
-                      {isAdmin && (
-                        <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-                          <span className="font-bold text-heading">Admin Status Actions:</span>
-                          <button
-                            onClick={() => handleUpdateStatus(r.id, "Confirmed")}
-                            className="rounded bg-success/10 px-2 py-1 text-[11px] font-bold text-success hover:bg-success/20"
-                          >
-                            Mark Confirmed
-                          </button>
-                          <button
-                            onClick={() => handleUpdateStatus(r.id, "Under Review")}
-                            className="rounded bg-amber-500/10 px-2 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                          >
-                            Under Review
-                          </button>
-                        </div>
-                      )}
+                      {((r.scheduledDate && r.scheduledDate !== "----------") ||
+                        r.status === "Scheduled") &&
+                        !isAdmin && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 bg-primary/5 -mx-3 -mb-3 p-3 rounded-b-lg">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                              <span>
+                                Scheduled Date:{" "}
+                                <strong className="font-mono text-heading">
+                                  {r.scheduledDate && r.scheduledDate !== "----------"
+                                    ? r.scheduledDate
+                                    : "Scheduled"}
+                                </strong>
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFormReq(r)}
+                              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity shadow-xs"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Download Echo Request Form</span>
+                            </button>
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -774,7 +913,7 @@ export function EchoAppointment() {
                 </select>
               </div>
 
-              {scheduleDate && (
+              {scheduleDate && scheduleDate !== "----------" && (
                 <div className="rounded-lg border border-primary/20 bg-primary/10 p-2.5 text-xs text-primary font-mono text-center font-bold">
                   Scheduled for: {scheduleDate} @ {scheduleTime}
                 </div>
@@ -800,6 +939,152 @@ export function EchoAppointment() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Confirmation Notice Modal */}
+      {showNoticeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl space-y-5 overflow-hidden">
+            <div className="flex items-start justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-heading">Important Requirement Notice</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Please review before submitting request
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoticeModal(false);
+                  setPendingReq(null);
+                }}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted/20 hover:text-foreground transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <FileText className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <p className="font-medium text-xs sm:text-sm leading-relaxed text-foreground">
+                  Please ensure that the patient has been provided with the Echocardiogram Request
+                  Form
+                </p>
+              </div>
+
+              <div className="flex items-start gap-3 pt-2.5 border-t border-border/50">
+                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <p className="font-semibold text-xs sm:text-sm leading-relaxed text-destructive">
+                  Patients who attend their scheduled appointment without the Echo Request Form will
+                  not be accepted for the examination
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border pt-4">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setShowNoticeModal(false);
+                  setPendingReq(null);
+                }}
+                className="rounded-xl border border-border px-4 py-2.5 text-xs sm:text-sm font-semibold hover:bg-muted/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleConfirmSubmit}
+                className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isSubmitting ? "Submitting..." : "Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Rejection Modal */}
+      {rejectingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2 text-destructive font-bold">
+                <XCircle className="h-5 w-5" />
+                <h3 className="text-base font-bold">Reject Appointment Request</h3>
+              </div>
+              <button
+                onClick={() => setRejectingReq(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-surface"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs space-y-1">
+              <p className="font-bold text-heading">
+                {rejectingReq.patientName} ({rejectingReq.mrn})
+              </p>
+              <p className="text-muted-foreground">
+                Referring Facility: {rejectingReq.facilityName}
+              </p>
+            </div>
+
+            <form onSubmit={handleRejectSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-heading">Rejection Reason</label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Enter the reason for rejecting this request..."
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary min-h-[80px]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-heading">Rejected By</label>
+                <input
+                  type="text"
+                  value={rejectedBy}
+                  onChange={(e) => setRejectedBy(e.target.value)}
+                  placeholder="Your Name / Designation"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setRejectingReq(null)}
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-surface transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground hover:opacity-90 transition-opacity"
+                >
+                  Submit Rejection
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Official Echo Request Form Preview & Download Modal */}
+      {selectedFormReq && (
+        <EchoFormModal request={selectedFormReq} onClose={() => setSelectedFormReq(null)} />
       )}
     </section>
   );

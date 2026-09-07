@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { FacilityProvider } from "@/context/FacilityContext";
 import { FacilitySelectModal } from "@/components/hospital/FacilitySelectModal";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -80,6 +81,7 @@ function RootComponent() {
       <FacilityProvider>
         <FacilitySelectModal />
         <Outlet />
+        <Toaster />
       </FacilityProvider>
     </QueryClientProvider>
   );

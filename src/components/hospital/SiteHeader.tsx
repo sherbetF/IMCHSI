@@ -254,11 +254,7 @@ export function SiteHeader() {
                     <div className="flex items-center gap-2">
                       <Bell className={`h-4 w-4 ${isAdmin ? "text-amber-500" : "text-primary"}`} />
                       <h4 className="text-sm font-bold text-heading">
-                        {isAdmin
-                          ? "New Appointment Requests"
-                          : selectedFacility
-                            ? `${selectedFacility.name} Notifications`
-                            : "Appointment Notifications"}
+                        {isAdmin ? "New Appointment Requests" : "Notifications"}
                       </h4>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${

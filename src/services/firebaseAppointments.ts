@@ -87,9 +87,12 @@ export interface AppointmentRecord {
     | "Confirmed"
     | "Scheduled"
     | "Under Review"
+    | "Rejected"
     | "Completed - Result Ready";
   createdAt: string;
   scheduledDate?: string;
+  rejectReason?: string;
+  rejectedBy?: string;
   resultFile?: {
     fileName: string;
     uploadedAt: string;
