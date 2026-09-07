@@ -28,6 +28,7 @@ import {
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
 import { EchoFormModal } from "./EchoFormModal";
+import { getLocalDateTimeString, formatDisplayDateTime } from "@/utils/dateUtils";
 import {
   subscribeToAppointments,
   createAppointment,
@@ -216,7 +217,7 @@ export function StressTestAppointment() {
       clinicalIndication: formData.clinicalIndication.trim(),
       diagnosis: formData.diagnosis.trim(),
       status: "Pending Confirmation",
-      createdAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+      createdAt: getLocalDateTimeString(),
     };
 
     setPendingReq(newReq);
@@ -306,7 +307,7 @@ export function StressTestAppointment() {
     if (!uploadingReq || !resultFileName) return;
     const newResult: TestResultFile = {
       fileName: resultFileName,
-      uploadedAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+      uploadedAt: getLocalDateTimeString(),
       summaryNotes: resultSummaryNotes.trim() || "Stress Test report attached.",
     };
 
@@ -902,7 +903,7 @@ export function StressTestAppointment() {
                         <span>
                           Facility: {r.facilityName} ({r.facilityCategory || "Healthcare Facility"})
                         </span>
-                        <span>Submitted: {r.createdAt}</span>
+                        <span>Submitted: {formatDisplayDateTime(r.createdAt)}</span>
                       </div>
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||

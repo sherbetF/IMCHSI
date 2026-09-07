@@ -32,6 +32,7 @@ import {
   AppointmentRecord,
 } from "@/services/firebaseAppointments";
 import { EchoFormModal } from "./EchoFormModal";
+import { getLocalDateTimeString, formatDisplayDateTime } from "@/utils/dateUtils";
 
 export type AppointmentRequest = AppointmentRecord;
 
@@ -174,7 +175,7 @@ export function EchoAppointment() {
       clinicalIndication: formData.clinicalIndication.trim(),
       diagnosis: formData.diagnosis.trim(),
       status: "Pending Confirmation",
-      createdAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+      createdAt: getLocalDateTimeString(),
     };
 
     setPendingReq(newReq);
@@ -794,7 +795,7 @@ export function EchoAppointment() {
                         <span>
                           Facility: {r.facilityName} ({r.facilityCategory || "Healthcare Facility"})
                         </span>
-                        <span>Submitted: {r.createdAt}</span>
+                        <span>Submitted: {formatDisplayDateTime(r.createdAt)}</span>
                       </div>
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||
