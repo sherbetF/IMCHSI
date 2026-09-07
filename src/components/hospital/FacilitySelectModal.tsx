@@ -61,9 +61,22 @@ export function FacilitySelectModal() {
   const currentCategoryData = FACILITIES_DATA.find((g) => g.category === selectedCategory);
   const availableFacilities = currentCategoryData ? currentCategoryData.items : [];
 
-  const filteredFacilities = availableFacilities.filter((facility) =>
-    facility.toLowerCase().includes(searchQuery.toLowerCase().trim()),
-  );
+  const filteredFacilities = availableFacilities.filter((facility) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    const facLower = facility.toLowerCase();
+    if (facLower.includes(q)) return true;
+    if (
+      facLower.includes("klinik kesihatan") &&
+      facLower.replace(/klinik kesihatan/g, "kk").includes(q)
+    ) {
+      return true;
+    }
+    if (facLower.includes("kk") && facLower.replace(/\bkk\b/g, "klinik kesihatan").includes(q)) {
+      return true;
+    }
+    return false;
+  });
 
   useEffect(() => {
     if (filteredFacilities.length > 0 && !filteredFacilities.includes(selectedName)) {

@@ -19,6 +19,7 @@ export const FACILITIES_DATA: FacilityGroup[] = [
       "KK Pasir Gudang",
       "KK Masai",
       "KK Kampung Cahaya Baru",
+      "Klinik Kesihatan Bandar Kota Tinggi",
       "KK Air Tawar 2",
       "KK Air Tawar 5",
       "KK Bandar Mas",
