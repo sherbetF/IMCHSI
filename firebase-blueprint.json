@@ -70,6 +70,54 @@
         "resultFile": { "type": "object" }
       },
       "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "blood_pressure_appointments": {
+      "title": "Blood Pressure Appointments",
+      "description": "24 Hours Blood Pressure Monitoring appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "lung_function_appointments": {
+      "title": "Lung Function Appointments",
+      "description": "Lung Function Test / Spirometry appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -85,6 +133,14 @@
       "holter_appointments": {
         "entity": "holter_appointments",
         "description": "Store holter appointments"
+      },
+      "blood_pressure_appointments": {
+        "entity": "blood_pressure_appointments",
+        "description": "Store 24 hours blood pressure monitoring appointments"
+      },
+      "lung_function_appointments": {
+        "entity": "lung_function_appointments",
+        "description": "Store lung function test and spirometry appointments"
       }
     }
   }

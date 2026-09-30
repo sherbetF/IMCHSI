@@ -1,4 +1,5 @@
 import { AppointmentRecord } from "../services/firebaseAppointments";
+import { formatDisplayDateOnly, formatDisplayScheduledDate } from "./dateUtils";
 
 /**
  * Auto-calculates age based on Malaysian IC Number.
@@ -42,15 +43,7 @@ export function detectGenderFromIC(icNumber: string): string {
  * Formats a raw ISO date or timestamp into a clean DD/MM/YYYY string.
  */
 export function formatDateOnly(dateStr?: string): string {
-  if (!dateStr) return new Date().toLocaleDateString("en-GB");
-  const datePart = dateStr.split(" @ ")[0].split(" ")[0];
-  if (datePart.includes("-")) {
-    const parts = datePart.split("-");
-    if (parts.length === 3 && parts[0].length === 4) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-  }
-  return datePart;
+  return formatDisplayDateOnly(dateStr);
 }
 
 /**
@@ -60,9 +53,9 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   const isUrgent = req.urgency === "Urgent";
   const age = calculateAgeFromIC(req.mrn);
   const gender = detectGenderFromIC(req.mrn);
-  const requestDate = formatDateOnly(req.createdAt);
-  const scheduledDateFull = req.scheduledDate || "";
-  const scheduledDateOnly = req.scheduledDate ? formatDateOnly(req.scheduledDate) : "";
+  const requestDate = formatDisplayDateOnly(req.createdAt);
+  const scheduledDateFull = req.scheduledDate ? formatDisplayScheduledDate(req.scheduledDate) : "";
+  const scheduledDateOnly = req.scheduledDate ? formatDisplayDateOnly(req.scheduledDate) : "";
 
   let titleText = "ECHOCARDIOGRAM";
   let lastDoneLabel = "Date Last Echo Done:";
@@ -74,6 +67,20 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   } else if (procType.includes("holter")) {
     titleText = "24 HOUR HOLTER MONITORING";
     lastDoneLabel = "Date Last Holter Done:";
+  } else if (
+    procType.includes("blood pressure") ||
+    procType.includes("abpm") ||
+    procType.includes("bp")
+  ) {
+    titleText = "24 HOUR BLOOD PRESSURE MONITORING (ABPM)";
+    lastDoneLabel = "Date Last ABPM Done:";
+  } else if (
+    procType.includes("lung function") ||
+    procType.includes("spirometry") ||
+    procType.includes("lft")
+  ) {
+    titleText = "LUNG FUNCTION TEST / SPIROMETRY";
+    lastDoneLabel = "Date Last Spirometry Done:";
   }
 
   return `

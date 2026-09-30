@@ -28,7 +28,11 @@ import {
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
 import { EchoFormModal } from "./EchoFormModal";
-import { getLocalDateTimeString, formatDisplayDateTime } from "@/utils/dateUtils";
+import {
+  getLocalDateTimeString,
+  formatDisplayDateTime,
+  formatDisplayScheduledDate,
+} from "@/utils/dateUtils";
 import {
   subscribeToAppointments,
   createAppointment,
@@ -741,7 +745,7 @@ export function HolterAppointment() {
                       {r.scheduledDate && r.scheduledDate !== "----------" && (
                         <span className="hidden sm:flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
                           <CalendarCheck className="h-3 w-3" />
-                          <span>{r.scheduledDate}</span>
+                          <span>{formatDisplayScheduledDate(r.scheduledDate)}</span>
                         </span>
                       )}
 
@@ -887,7 +891,7 @@ export function HolterAppointment() {
                             <FileCheck className="h-3.5 w-3.5 shrink-0" />
                             <span>Attached Diagnostic Result: {r.resultFile.fileName}</span>
                             <span className="text-[10px] text-muted-foreground font-normal">
-                              ({r.resultFile.uploadedAt})
+                              ({formatDisplayDateTime(r.resultFile.uploadedAt)})
                             </span>
                           </div>
                           {r.resultFile.summaryNotes && (
@@ -915,7 +919,7 @@ export function HolterAppointment() {
                                 Scheduled Date:{" "}
                                 <strong className="font-mono text-heading">
                                   {r.scheduledDate && r.scheduledDate !== "----------"
-                                    ? r.scheduledDate
+                                    ? formatDisplayScheduledDate(r.scheduledDate)
                                     : "Scheduled"}
                                 </strong>
                               </span>
@@ -998,12 +1002,6 @@ export function HolterAppointment() {
                   }}
                   className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
                 />
-                {scheduleDate && scheduleDate !== "----------" && (
-                  <p className="text-xs font-bold text-primary flex items-center gap-1.5 mt-1">
-                    <CalendarCheck className="h-3.5 w-3.5" />
-                    Selected Date: <span className="underline">{scheduleDate}</span> (dd/mm/yyyy)
-                  </p>
-                )}
               </div>
 
               <div className="space-y-1.5">
@@ -1042,7 +1040,7 @@ export function HolterAppointment() {
                   className="flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90"
                 >
                   <Check className="h-4 w-4" />
-                  Save Schedule to Cloud
+                  Submit
                 </button>
               </div>
             </form>

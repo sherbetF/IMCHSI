@@ -28,10 +28,7 @@ import {
 
 const nav = [
   { label: "Home", to: "/" as const },
-  { label: "Appointment", to: "/" as const, isAppointmentScroll: true },
-  { label: "Echocardiogram", to: "/echo" as const },
-  { label: "Stress Test", to: "/stress-test" as const },
-  { label: "Holter", to: "/holter" as const },
+  { label: "NICL Procedure", to: "/" as const, isAppointmentScroll: true },
 ];
 
 function useClock() {
@@ -123,12 +120,7 @@ export function SiteHeader() {
     ? `${pad(now.getHours())} : ${pad(now.getMinutes())} : ${pad(now.getSeconds())}`
     : "-- : -- : --";
   const date = now
-    ? now.toLocaleDateString("en-GB", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
+    ? `${now.toLocaleDateString("en-GB", { weekday: "long" })}, ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`
     : "";
 
   return (

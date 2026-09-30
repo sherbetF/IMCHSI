@@ -2,18 +2,25 @@ export interface UnifiedRequestNotification {
   id: string;
   patientName: string;
   mrn: string;
-  testType: "Echocardiogram" | "Exercise Stress Test" | "24H Holter";
+  testType:
+    | "Echocardiogram"
+    | "Exercise Stress Test"
+    | "24H Holter"
+    | "24H Blood Pressure"
+    | "Lung Function / Spirometry";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/echo" | "/stress-test" | "/holter";
+  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function";
 }
 
 const ECHO_KEY = "hsi_echo_requests_v2";
 const STRESS_KEY = "hsi_stresstest_requests_v2";
 const HOLTER_KEY = "hsi_holter_requests_v2";
+const BP_KEY = "hsi_bloodpressure_requests_v2";
+const LFT_KEY = "hsi_lungfunction_requests_v2";
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
 
 export const defaultEchoRequests = [
@@ -31,7 +38,7 @@ export const defaultEchoRequests = [
     clinicalIndication: "Hypertension & shortness of breath on exertion",
     diagnosis: "Hypertensive Heart Disease / LVH",
     status: "Confirmed",
-    createdAt: "2026-08-15 10:15",
+    createdAt: "15/08/2026 10:15",
   },
   {
     id: "ECHO-2026-1043",
@@ -47,7 +54,7 @@ export const defaultEchoRequests = [
     clinicalIndication: "Exertional chest tightness & easy fatigue",
     diagnosis: "Suspected Coronary Artery Disease",
     status: "Pending Confirmation",
-    createdAt: "2026-08-16 08:45",
+    createdAt: "16/08/2026 08:45",
   },
   {
     id: "ECHO-2026-1044",
@@ -63,7 +70,7 @@ export const defaultEchoRequests = [
     clinicalIndication: "High grade fever with new systolic murmur",
     diagnosis: "Infective Endocarditis rule out",
     status: "Under Review",
-    createdAt: "2026-08-16 09:30",
+    createdAt: "16/08/2026 09:30",
   },
 ];
 
@@ -82,7 +89,7 @@ export const defaultStressRequests = [
     clinicalIndication: "Exertional chest discomfort on climbing stairs",
     diagnosis: "Ischaemic Heart Disease Evaluation",
     status: "Confirmed",
-    createdAt: "2026-08-15 11:30",
+    createdAt: "15/08/2026 11:30",
   },
   {
     id: "EST-2026-1012",
@@ -98,7 +105,7 @@ export const defaultStressRequests = [
     clinicalIndication: "Atypical chest pain with multiple cardiovascular risk factors",
     diagnosis: "Rule out Angina Pectoris",
     status: "Pending Confirmation",
-    createdAt: "2026-08-16 09:10",
+    createdAt: "16/08/2026 09:10",
   },
 ];
 
@@ -117,7 +124,7 @@ export const defaultHolterRequests = [
     clinicalIndication: "Recurrent palpitations & presyncope episodes",
     diagnosis: "Symptomatic Arrhythmia Rule Out / Atrial Fibrillation",
     status: "Confirmed",
-    createdAt: "2026-08-15 14:20",
+    createdAt: "15/08/2026 14:20",
   },
   {
     id: "HOLTER-2026-2022",
@@ -133,7 +140,77 @@ export const defaultHolterRequests = [
     clinicalIndication: "Unexplained syncope with normal baseline 12-lead ECG",
     diagnosis: "Paroxysmal Atrial Fibrillation / Sick Sinus Syndrome",
     status: "Pending Confirmation",
-    createdAt: "2026-08-16 10:05",
+    createdAt: "16/08/2026 10:05",
+  },
+];
+
+export const defaultBPRequests = [
+  {
+    id: "ABPM-2026-3001",
+    facilityName: "Hospital Sultan Ismail",
+    facilityCategory: "Hospital",
+    patientName: "Kamal bin Mohd Yusof",
+    mrn: "ID-449102",
+    contactNumber: "+60 12-456 7890",
+    email: "kamal.yusof@example.com",
+    procedureType: "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)",
+    urgency: "Routine",
+    referringDoctor: "Dr. Lim Wei Hong (Cardiology)",
+    clinicalIndication: "Apparent Treatment-Resistant Hypertension on 3 antihypertensive agents",
+    diagnosis: "Essential Hypertension / Suspected White Coat Effect",
+    status: "Confirmed",
+    createdAt: "15/08/2026 12:30",
+  },
+  {
+    id: "ABPM-2026-3002",
+    facilityName: "KK Sultan Ismail",
+    facilityCategory: "Klinik Kesihatan",
+    patientName: "Nurul Huda binti Othman",
+    mrn: "ID-558291",
+    contactNumber: "+60 19-876 5432",
+    email: "nurul.huda@example.com",
+    procedureType: "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Sarah Tan (Internal Medicine)",
+    clinicalIndication: "Labile blood pressure with nocturnal headache & non-dipping concern",
+    diagnosis: "Secondary Hypertension Investigation / Masked Hypertension",
+    status: "Pending Confirmation",
+    createdAt: "16/08/2026 11:20",
+  },
+];
+
+export const defaultLungFunctionRequests = [
+  {
+    id: "LFT-2026-4001",
+    facilityName: "Hospital Sultan Ismail",
+    facilityCategory: "Hospital",
+    patientName: "Tan Chee Meng",
+    mrn: "ID-663910",
+    contactNumber: "+60 12-772 3190",
+    email: "tan.cm@example.com",
+    procedureType: "Lung Function Test / Spirometry",
+    urgency: "Routine",
+    referringDoctor: "Dr. Lim Wei Hong (Respiratory Medicine)",
+    clinicalIndication: "Exertional dyspnea & chronic dry cough for 6 months, smoker 20 pack-years",
+    diagnosis: "Chronic Obstructive Pulmonary Disease (COPD) / Asthma-COPD Overlap",
+    status: "Confirmed",
+    createdAt: "15/08/2026 15:40",
+  },
+  {
+    id: "LFT-2026-4002",
+    facilityName: "KK Sultan Ismail",
+    facilityCategory: "Klinik Kesihatan",
+    patientName: "Faridah binti Ismail",
+    mrn: "ID-772019",
+    contactNumber: "+60 18-912 4003",
+    email: "faridah.i@example.com",
+    procedureType: "Lung Function Test / Spirometry",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Sarah Tan (Internal Medicine)",
+    clinicalIndication: "Poorly controlled wheezing & nocturnal breathlessness despite ICS-LABA",
+    diagnosis: "Severe Persistent Bronchial Asthma / Reversibility Assessment",
+    status: "Pending Confirmation",
+    createdAt: "16/08/2026 11:45",
   },
 ];
 
@@ -212,6 +289,47 @@ export function saveHolterRequests(requests: GenericAppointmentRequest[]) {
     emitRequestsChanged();
   } catch (err) {
     console.error("Failed to save holter requests", err);
+  }
+}
+
+export function getStoredBPRequests(): GenericAppointmentRequest[] {
+  if (typeof window === "undefined") return defaultBPRequests as GenericAppointmentRequest[];
+  try {
+    const raw = localStorage.getItem(BP_KEY);
+    return raw ? JSON.parse(raw) : defaultBPRequests;
+  } catch {
+    return defaultBPRequests as GenericAppointmentRequest[];
+  }
+}
+
+export function saveBPRequests(requests: GenericAppointmentRequest[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(BP_KEY, JSON.stringify(requests));
+    emitRequestsChanged();
+  } catch (err) {
+    console.error("Failed to save BP requests", err);
+  }
+}
+
+export function getStoredLungFunctionRequests(): GenericAppointmentRequest[] {
+  if (typeof window === "undefined")
+    return defaultLungFunctionRequests as GenericAppointmentRequest[];
+  try {
+    const raw = localStorage.getItem(LFT_KEY);
+    return raw ? JSON.parse(raw) : defaultLungFunctionRequests;
+  } catch {
+    return defaultLungFunctionRequests as GenericAppointmentRequest[];
+  }
+}
+
+export function saveLungFunctionRequests(requests: GenericAppointmentRequest[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LFT_KEY, JSON.stringify(requests));
+    emitRequestsChanged();
+  } catch (err) {
+    console.error("Failed to save lung function requests", err);
   }
 }
 
@@ -308,6 +426,24 @@ export function getAllNewAppointmentRequests(): UnifiedRequestNotification[] {
         createdAt: r.createdAt,
         status: r.status,
         route: "/holter",
+      });
+    }
+  });
+
+  const bp = getStoredBPRequests();
+  bp.forEach((r) => {
+    if (isPending(r.status)) {
+      notifications.push({
+        id: r.id,
+        patientName: r.patientName,
+        mrn: r.mrn,
+        testType: "24H Blood Pressure",
+        procedureType: r.procedureType,
+        urgency: r.urgency,
+        facilityName: r.facilityName,
+        createdAt: r.createdAt,
+        status: r.status,
+        route: "/blood-pressure",
       });
     }
   });

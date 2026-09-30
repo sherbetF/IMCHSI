@@ -26,7 +26,13 @@ export function EchoFormModal({ request, onClose }: EchoFormModalProps) {
                   ? "Exercise Stress Test Request Form"
                   : request.procedureType?.includes("Holter")
                     ? "24 Hours Holter Monitoring Request Form"
-                    : "Echocardiogram Request Form"}
+                    : request.procedureType?.includes("Blood Pressure") ||
+                        request.procedureType?.includes("ABPM")
+                      ? "24 Hours Blood Pressure Monitoring Request Form"
+                      : request.procedureType?.includes("Lung Function") ||
+                          request.procedureType?.includes("Spirometry")
+                        ? "Lung Function Test / Spirometry Request Form"
+                        : "Echocardiogram Request Form"}
               </h3>
               <p className="text-xs text-muted-foreground">
                 Patient:{" "}

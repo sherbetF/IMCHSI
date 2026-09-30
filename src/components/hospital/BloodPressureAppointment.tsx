@@ -1,99 +1,114 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Calendar as CalendarIcon,
   Clock,
-  Heart,
   User,
   Phone,
   AlertCircle,
   AlertTriangle,
-  FileText,
   CheckCircle2,
   Send,
   Search,
   Filter,
   Info,
-  Lock,
-  Hospital,
-  LogOut,
   CalendarCheck,
-  Check,
+  FileCheck,
+  Upload,
+  FileText,
   X,
   XCircle,
+  Check,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
-import {
-  subscribeToAppointments,
-  createAppointment,
-  updateAppointment,
-  AppointmentRecord,
-} from "@/services/firebaseAppointments";
 import { EchoFormModal } from "./EchoFormModal";
 import {
   getLocalDateTimeString,
   formatDisplayDateTime,
   formatDisplayScheduledDate,
 } from "@/utils/dateUtils";
+import {
+  subscribeToAppointments,
+  createAppointment,
+  updateAppointment,
+  AppointmentRecord,
+} from "@/services/firebaseAppointments";
 
-export type AppointmentRequest = AppointmentRecord;
+export type TestResultFile = {
+  fileName: string;
+  uploadedAt: string;
+  summaryNotes: string;
+};
 
-export function EchoAppointment() {
+export type BloodPressureRequest = AppointmentRecord;
+
+export function BloodPressureAppointment() {
   const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
     isAdmin ? "tracker" : "request",
   );
-  const [requests, setRequests] = useState<AppointmentRequest[]>([]);
+  const [requests, setRequests] = useState<BloodPressureRequest[]>([]);
+  const [selectedFormReq, setSelectedFormReq] = useState<AppointmentRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submittedRef, setSubmittedRef] = useState<AppointmentRequest | null>(null);
+  const [submittedRef, setSubmittedRef] = useState<BloodPressureRequest | null>(null);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Admin schedule modal state
-  const [schedulingReq, setSchedulingReq] = useState<AppointmentRequest | null>(null);
+  const [schedulingReq, setSchedulingReq] = useState<BloodPressureRequest | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [rawDate, setRawDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("09:00 AM");
 
+  // Admin upload result modal state
+  const [uploadingReq, setUploadingReq] = useState<BloodPressureRequest | null>(null);
+  const [resultFileName, setResultFileName] = useState("");
+  const [resultSummaryNotes, setResultSummaryNotes] = useState("");
+
   // Admin rejection modal state
-  const [rejectingReq, setRejectingReq] = useState<AppointmentRequest | null>(null);
+  const [rejectingReq, setRejectingReq] = useState<BloodPressureRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectedBy, setRejectedBy] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    patientName: "",
-    mrn: "",
-    contactNumber: "",
-    email: "",
-    procedureType: "Transthoracic Echocardiogram (TTE)",
-    urgency: "Routine" as AppointmentRequest["urgency"],
-    referringDoctor: "",
-    department: "",
-    clinicalIndication: "",
-    diagnosis: "",
-  });
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
 
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
 
-  // Notice modal state
-  const [showNoticeModal, setShowNoticeModal] = useState(false);
-  const [pendingReq, setPendingReq] = useState<AppointmentRequest | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      setSelectedFile(file);
+      setResultFileName(file.name);
+    }
+  };
 
-  // Form preview modal state
-  const [selectedFormReq, setSelectedFormReq] = useState<AppointmentRecord | null>(null);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setResultFileName(file.name);
+    }
+  };
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     setLoading(true);
 
     const unsub = subscribeToAppointments(
-      "echo",
+      "bp",
       selectedFacility ? selectedFacility.name : null,
       isAdmin,
       (data) => {
@@ -132,7 +147,30 @@ export function EchoAppointment() {
     }
   }, [submittedRef]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Form State
+  const [formData, setFormData] = useState({
+    patientName: "",
+    mrn: "",
+    contactNumber: "",
+    email: "",
+    procedureType: "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)",
+    urgency: "Routine" as BloodPressureRequest["urgency"],
+    referringDoctor: "",
+    department: "",
+    clinicalIndication: "",
+    diagnosis: "",
+  });
+
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Notice modal state
+  const [showNoticeModal, setShowNoticeModal] = useState(false);
+  const [pendingReq, setPendingReq] = useState<BloodPressureRequest | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -164,15 +202,15 @@ export function EchoAppointment() {
     const deptName = formData.department.trim();
     const combinedRef = docName ? `${docName} (${deptName})` : deptName;
 
-    const newReq: AppointmentRequest = {
-      id: `ECHO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+    const newReq: BloodPressureRequest = {
+      id: `ABPM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
       patientName: formData.patientName.trim(),
       mrn: formData.mrn.trim(),
       contactNumber: formData.contactNumber.trim(),
       email: formData.email.trim() || "N/A",
-      procedureType: "Transthoracic Echocardiogram (TTE)",
+      procedureType: "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)",
       urgency: formData.urgency,
       referringDoctor: combinedRef,
       department: deptName,
@@ -190,7 +228,7 @@ export function EchoAppointment() {
     if (!pendingReq) return;
     setIsSubmitting(true);
     try {
-      await createAppointment("echo", pendingReq);
+      await createAppointment("bp", pendingReq);
       setSubmittedRef(pendingReq);
 
       // Reset Form
@@ -199,7 +237,7 @@ export function EchoAppointment() {
         mrn: "",
         contactNumber: "",
         email: "",
-        procedureType: "Transthoracic Echocardiogram (TTE)",
+        procedureType: "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)",
         urgency: "Routine",
         referringDoctor: "",
         department: "",
@@ -209,35 +247,17 @@ export function EchoAppointment() {
       setShowNoticeModal(false);
       setPendingReq(null);
     } catch (err) {
-      console.error("Failed to create appointment in Firebase:", err);
+      console.error("Failed to create blood pressure request in Firebase:", err);
+      toast.error("Failed to submit request");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSaveSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!schedulingReq || !scheduleDate) return;
-    const fullSchedule = `${scheduleDate} @ ${scheduleTime}`;
-
-    try {
-      await updateAppointment("echo", schedulingReq.id, {
-        scheduledDate: fullSchedule,
-        status: "Scheduled",
-      });
-      toast.success(`Successfully scheduled appointment for ${schedulingReq.patientName}`);
-      setSchedulingReq(null);
-      setScheduleDate("");
-    } catch (err) {
-      console.error("Failed to update schedule in Firebase:", err);
-      toast.error("Failed to schedule appointment");
-    }
-  };
-
-  const handleUpdateStatus = async (id: string, newStatus: AppointmentRequest["status"]) => {
+  const handleUpdateStatus = async (id: string, newStatus: AppointmentRecord["status"]) => {
     if (!isAdmin) return;
     try {
-      await updateAppointment("echo", id, { status: newStatus });
+      await updateAppointment("bp", id, { status: newStatus });
       toast.success(`Updated status to ${newStatus}`);
     } catch (err) {
       console.error("Failed to update status:", err);
@@ -249,7 +269,7 @@ export function EchoAppointment() {
     e.preventDefault();
     if (!rejectingReq || !rejectReason.trim() || !rejectedBy.trim()) return;
     try {
-      await updateAppointment("echo", rejectingReq.id, {
+      await updateAppointment("bp", rejectingReq.id, {
         status: "Rejected",
         rejectReason: rejectReason.trim(),
         rejectedBy: rejectedBy.trim(),
@@ -261,6 +281,52 @@ export function EchoAppointment() {
     } catch (err) {
       console.error("Failed to reject request:", err);
       toast.error("Failed to reject request");
+    }
+  };
+
+  const handleSaveSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schedulingReq || !scheduleDate) return;
+    const fullSchedule = `${scheduleDate} @ ${scheduleTime}`;
+
+    try {
+      await updateAppointment("bp", schedulingReq.id, {
+        scheduledDate: fullSchedule,
+        status: "Scheduled",
+      });
+      toast.success(`Successfully scheduled appointment for ${schedulingReq.patientName}`);
+      setSchedulingReq(null);
+      setScheduleDate("");
+    } catch (err) {
+      console.error("Failed to update blood pressure schedule in Firebase:", err);
+      toast.error("Failed to schedule appointment");
+    }
+  };
+
+  const handleSaveResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadingReq || !resultFileName) return;
+    const newResult: TestResultFile = {
+      fileName: resultFileName,
+      uploadedAt: getLocalDateTimeString(),
+      summaryNotes:
+        resultSummaryNotes.trim() ||
+        "24 Hours Ambulatory Blood Pressure diagnostic report attached.",
+    };
+
+    try {
+      await updateAppointment("bp", uploadingReq.id, {
+        resultFile: newResult,
+        status: "Completed - Result Ready",
+      });
+      setUploadingReq(null);
+      setResultFileName("");
+      setResultSummaryNotes("");
+      setSelectedFile(null);
+      toast.success(`Diagnostic report attached for ${uploadingReq.patientName}`);
+    } catch (err) {
+      console.error("Failed to upload blood pressure result to Firebase:", err);
+      toast.error("Failed to upload result");
     }
   };
 
@@ -278,10 +344,12 @@ export function EchoAppointment() {
 
   return (
     <section className="mx-auto max-w-[1200px] px-5 pt-4 pb-10">
-      {/* Tab Controls & Firebase Status */}
+      {/* Tab Controls & Lab Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <h2 className="text-2xl font-bold text-heading">Echocardiogram Request Portal</h2>
+          <h2 className="text-2xl font-bold text-heading">
+            24 Hours Blood Pressure Monitoring Request Portal
+          </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Non-Invasive Cardiovascular Laboratory • Hospital Sultan Ismail
           </p>
@@ -315,7 +383,7 @@ export function EchoAppointment() {
         )}
       </div>
 
-      {/* Confirmation Modal Banner after submission */}
+      {/* Confirmation Banner */}
       {submittedRef && (
         <div
           className={`mt-6 rounded-xl border border-success/30 bg-success-soft p-4 sm:p-5 transition-all duration-1000 ease-in-out ${
@@ -374,7 +442,7 @@ export function EchoAppointment() {
                       type="text"
                       value={formData.patientName}
                       onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                      placeholder="e.g. Ahmad Razak bin Abdullah"
+                      placeholder="e.g. Lee Kok Keong"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     {formErrors.patientName && (
@@ -394,7 +462,7 @@ export function EchoAppointment() {
                         const alphanumericOnly = e.target.value.replace(/[^a-zA-Z0-9]/g, "");
                         setFormData({ ...formData, mrn: alphanumericOnly });
                       }}
-                      placeholder="e.g. 880512015541 or ID884920"
+                      placeholder="e.g. 820315013392 or ID339201"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     {formErrors.mrn && (
@@ -410,7 +478,7 @@ export function EchoAppointment() {
                       type="tel"
                       value={formData.contactNumber}
                       onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
-                      placeholder="e.g. +60 12-345 6789"
+                      placeholder="e.g. +60 12-881 2043"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     {formErrors.contactNumber && (
@@ -434,7 +502,7 @@ export function EchoAppointment() {
                     <input
                       type="text"
                       disabled
-                      value="Transthoracic Echocardiogram (TTE)"
+                      value="24 Hours Ambulatory Blood Pressure Monitoring (ABPM)"
                       className="mt-1 w-full rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm font-semibold text-muted-foreground"
                     />
                   </div>
@@ -448,7 +516,7 @@ export function EchoAppointment() {
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          urgency: e.target.value as AppointmentRequest["urgency"],
+                          urgency: e.target.value as BloodPressureRequest["urgency"],
                         })
                       }
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
@@ -469,7 +537,7 @@ export function EchoAppointment() {
                         onChange={(e) =>
                           setFormData({ ...formData, referringDoctor: e.target.value })
                         }
-                        placeholder="e.g. Dr. Tan Ai Ling"
+                        placeholder="e.g. Dr. Lim Wei Hong"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
                     </div>
@@ -482,7 +550,7 @@ export function EchoAppointment() {
                         type="text"
                         value={formData.department}
                         onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                        placeholder="e.g. Klinik Kesihatan Sultan Ismail"
+                        placeholder="e.g. Cardiology Department"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
                       {formErrors.department && (
@@ -494,7 +562,8 @@ export function EchoAppointment() {
 
                 <div>
                   <label className="block text-xs font-semibold text-heading">
-                    Clinical Indication & History <span className="text-destructive">*</span>
+                    Clinical Indication & Blood Pressure Symptoms{" "}
+                    <span className="text-destructive">*</span>
                   </label>
                   <textarea
                     rows={3}
@@ -502,7 +571,7 @@ export function EchoAppointment() {
                     onChange={(e) =>
                       setFormData({ ...formData, clinicalIndication: e.target.value })
                     }
-                    placeholder="Describe patient's symptoms, cardiovascular risks, murmur, prior ECG findings..."
+                    placeholder="Describe labile blood pressure, resistant hypertension, nocturnal dip evaluation, suspected white-coat effect, antihypertensive medication review..."
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
                   {formErrors.clinicalIndication && (
@@ -512,13 +581,14 @@ export function EchoAppointment() {
 
                 <div>
                   <label className="block text-xs font-semibold text-heading">
-                    Diagnosis <span className="text-destructive">*</span>
+                    Diagnosis / Suspected Blood Pressure Abnormality{" "}
+                    <span className="text-destructive">*</span>
                   </label>
                   <textarea
                     rows={2}
                     value={formData.diagnosis}
                     onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
-                    placeholder="Provide primary working diagnosis (e.g. Hypertensive Heart Disease, Aortic Stenosis, Heart Failure)."
+                    placeholder="e.g. Essential Hypertension, Resistant Hypertension, White-Coat Hypertension, Masked Hypertension, Nocturnal Non-Dipping."
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
                   {formErrors.diagnosis && (
@@ -534,7 +604,7 @@ export function EchoAppointment() {
                 className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 <Send className="h-4 w-4" />
-                Submit Appointment Request
+                Submit Blood Pressure Request
               </button>
             </div>
           </form>
@@ -557,28 +627,28 @@ export function EchoAppointment() {
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
                   <span>
-                    <strong>Echocardiogram Mode:</strong> Transthoracic Echocardiogram (TTE)
-                    standard adult cardiac evaluation only.
+                    <strong>ABPM Monitoring Mode:</strong> 24-Hour Continuous Ambulatory Blood
+                    Pressure Hook-up & Recorder Analysis.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
                   <span>
-                    <strong>Inpatient / Very Urgent Requests:</strong> Requests require direct
-                    verbal call to the lab extension +60 7-356 5000 (Ext. 2225).
+                    <strong>Inpatient / Very Urgent Requests / ABPM Consultation:</strong> Requests
+                    require direct verbal call to the lab extension +60 7-356 5000 (Ext. 2215).
                   </span>
                 </li>
               </ul>
             </div>
 
             <div className="rounded-xl border border-border bg-background p-5">
-              <h4 className="text-sm font-bold text-heading">Echo Room Location</h4>
+              <h4 className="text-sm font-bold text-heading">ABPM Room Location</h4>
               <p className="mt-1 text-xs text-muted-foreground">
-                Room 15 , Internal Medicine Clinic , Level 2 , Hospital Sultan Ismail , Johor Bahru
+                Room 10 , Internal Medicine Clinic , Level 2 , Hospital Sultan Ismail , Johor Bahru
               </p>
               <div className="mt-3 rounded-lg border border-border bg-surface p-3 text-xs">
                 <p className="font-semibold text-heading">Enquiries Hotline:</p>
-                <p className="text-primary font-mono font-medium">+60 7-356 5000 (Ext. 2225)</p>
+                <p className="text-primary font-mono font-medium">+60 7-356 5000 (Ext. 2215)</p>
               </div>
             </div>
           </div>
@@ -612,6 +682,7 @@ export function EchoAppointment() {
                 <option value="Pending Confirmation">Pending Confirmation</option>
                 <option value="Confirmed">Confirmed</option>
                 <option value="Scheduled">Scheduled</option>
+                <option value="Completed - Result Ready">Completed - Result Ready</option>
                 <option value="Under Review">Under Review</option>
               </select>
             </div>
@@ -649,19 +720,21 @@ export function EchoAppointment() {
                       )}
                     </div>
 
-                    {/* Right: Status, Scheduled Date, Action, Toggle */}
+                    {/* Right: Status, Scheduled Date, Result Badge, Admin Actions, Toggle */}
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                           r.status === "Scheduled"
                             ? "bg-primary/20 text-primary border border-primary/30"
-                            : r.status === "Confirmed"
-                              ? "bg-success-soft text-success"
-                              : r.status === "Pending Confirmation"
-                                ? "bg-warning-soft text-warning"
-                                : r.status === "Rejected"
-                                  ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                  : "bg-accent text-accent-foreground"
+                            : r.status === "Completed - Result Ready"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                              : r.status === "Confirmed"
+                                ? "bg-success-soft text-success"
+                                : r.status === "Pending Confirmation"
+                                  ? "bg-warning-soft text-warning"
+                                  : r.status === "Rejected"
+                                    ? "bg-destructive/10 text-destructive border border-destructive/20"
+                                    : "bg-accent text-accent-foreground"
                         }`}
                       >
                         {r.status}
@@ -681,13 +754,14 @@ export function EchoAppointment() {
                             type="button"
                             onClick={() => setSelectedFormReq(r)}
                             className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 transition-colors shadow-xs"
-                            title="Download official Echocardiogram Request Form"
+                            title="Download official 24H Blood Pressure Request Form"
                           >
                             <FileText className="h-3.5 w-3.5" />
-                            <span>Download Echo Form</span>
+                            <span>Download Form</span>
                           </button>
                         )}
 
+                      {/* Admin-only Controls: Schedule & Upload Result */}
                       {isAdmin && r.status !== "Rejected" && (
                         <div className="flex items-center gap-1.5">
                           <button
@@ -721,6 +795,20 @@ export function EchoAppointment() {
                             {r.scheduledDate && r.scheduledDate !== "----------"
                               ? "Reschedule"
                               : "Schedule"}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setUploadingReq(r);
+                              setResultFileName(
+                                r.resultFile?.fileName ||
+                                  `ABPM_Result_${r.patientName.replace(/\s+/g, "_")}.pdf`,
+                              );
+                              setResultSummaryNotes(r.resultFile?.summaryNotes || "");
+                            }}
+                            className="rounded-lg border border-emerald-600/40 bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
+                          >
+                            {r.resultFile ? "Edit Result" : "Upload Result"}
                           </button>
                         </div>
                       )}
@@ -795,6 +883,23 @@ export function EchoAppointment() {
                         </div>
                       )}
 
+                      {r.resultFile && (
+                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-xs text-emerald-700 dark:text-emerald-400 space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <FileCheck className="h-3.5 w-3.5 shrink-0" />
+                            <span>Attached Diagnostic Result: {r.resultFile.fileName}</span>
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              ({formatDisplayDateTime(r.resultFile.uploadedAt)})
+                            </span>
+                          </div>
+                          {r.resultFile.summaryNotes && (
+                            <p className="text-muted-foreground text-[11px]">
+                              <strong>Findings / Notes:</strong> {r.resultFile.summaryNotes}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between border-t border-border/40 pt-1.5 text-[11px] text-muted-foreground">
                         <span>
                           Facility: {r.facilityName} ({r.facilityCategory || "Healthcare Facility"})
@@ -823,7 +928,7 @@ export function EchoAppointment() {
                               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity shadow-xs"
                             >
                               <FileText className="h-3.5 w-3.5" />
-                              <span>Download Echo Request Form</span>
+                              <span>Download Request Form</span>
                             </button>
                           </div>
                         )}
@@ -838,7 +943,7 @@ export function EchoAppointment() {
                 <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground/50" />
                 <p className="mt-2">
                   {loading
-                    ? "Loading appointments from Firebase..."
+                    ? "Loading 24H Blood Pressure appointments from Firebase..."
                     : "No appointment requests found matching your filter."}
                 </p>
               </div>
@@ -854,7 +959,7 @@ export function EchoAppointment() {
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div className="flex items-center gap-2 text-heading font-bold">
                 <CalendarCheck className="h-5 w-5 text-primary" />
-                <h3>Schedule Echo Appointment</h3>
+                <h3>Schedule 24H ABPM Appointment</h3>
               </div>
               <button
                 onClick={() => setSchedulingReq(null)}
@@ -869,41 +974,42 @@ export function EchoAppointment() {
                 {schedulingReq.patientName} ({schedulingReq.mrn})
               </p>
               <p className="text-muted-foreground">
-                Referring Facility: {schedulingReq.facilityName}
+                Facility: <strong>{schedulingReq.facilityName}</strong>
               </p>
-              <p className="text-muted-foreground">
-                Procedure: {schedulingReq.procedureType} • Urgency: {schedulingReq.urgency}
-              </p>
+              <p className="text-muted-foreground">Procedure: {schedulingReq.procedureType}</p>
             </div>
 
             <form onSubmit={handleSaveSchedule} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-heading">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
                   Select Appointment Date (dd/mm/yyyy)
                 </label>
                 <input
                   type="date"
+                  required
                   value={rawDate}
                   onChange={(e) => {
-                    setRawDate(e.target.value);
-                    if (e.target.value) {
-                      const [yyyy, mm, dd] = e.target.value.split("-");
+                    const val = e.target.value;
+                    setRawDate(val);
+                    if (val) {
+                      const [yyyy, mm, dd] = val.split("-");
                       setScheduleDate(`${dd}/${mm}/${yyyy}`);
                     } else {
                       setScheduleDate("");
                     }
                   }}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-                  required
+                  className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-heading">Select Time Slot</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Select Time Slot
+                </label>
                 <select
                   value={scheduleTime}
                   onChange={(e) => setScheduleTime(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
                 >
                   <option value="08:30 AM">08:30 AM</option>
                   <option value="09:00 AM">09:00 AM</option>
@@ -916,7 +1022,6 @@ export function EchoAppointment() {
                   <option value="02:30 PM">02:30 PM</option>
                   <option value="03:00 PM">03:00 PM</option>
                   <option value="03:30 PM">03:30 PM</option>
-                  <option value="04:00 PM">04:00 PM</option>
                 </select>
               </div>
 
@@ -930,11 +1035,158 @@ export function EchoAppointment() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!scheduleDate}
-                  className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90"
                 >
-                  <CalendarCheck className="h-4 w-4" />
-                  <span>Submit</span>
+                  <Check className="h-4 w-4" />
+                  Submit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Upload Result Modal */}
+      {uploadingReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2 text-heading font-bold">
+                <Upload className="h-5 w-5 text-emerald-600" />
+                <h3>Upload 24H ABPM Result</h3>
+              </div>
+              <button
+                onClick={() => setUploadingReq(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-surface"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs space-y-1">
+              <p className="font-bold text-heading">
+                {uploadingReq.patientName} ({uploadingReq.mrn})
+              </p>
+              <p className="text-muted-foreground">
+                Referring Facility: <strong>{uploadingReq.facilityName}</strong>
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveResult} className="space-y-4">
+              {/* Drag and Drop / Device File Upload */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Diagnostic Result Document (PDF / File)
+                </label>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  className="hidden"
+                />
+
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`group cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition-all ${
+                    isDragging
+                      ? "border-emerald-600 bg-emerald-500/10 scale-[1.01]"
+                      : "border-border bg-surface hover:border-emerald-500/50 hover:bg-surface/80"
+                  }`}
+                >
+                  {selectedFile || resultFileName ? (
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+                        <FileCheck className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-bold text-heading break-all">
+                          {selectedFile ? selectedFile.name : resultFileName}
+                        </p>
+                        {selectedFile && (
+                          <p className="text-xs text-muted-foreground">
+                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Device File
+                            Attached
+                          </p>
+                        )}
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline pt-1">
+                        <Upload className="h-3.5 w-3.5" />
+                        Click or drag another file to replace
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center space-y-2 py-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-emerald-500/10 group-hover:text-emerald-600 transition-colors">
+                        <Upload className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-heading">
+                          Drag & drop result file here
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          or{" "}
+                          <span className="text-emerald-600 font-bold underline">
+                            browse file from device
+                          </span>
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/70">
+                        Supports PDF, DOC, DOCX, PNG, JPG (Max 25MB)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Report File Name / Document Title
+                </label>
+                <div className="relative">
+                  <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    required
+                    value={resultFileName}
+                    onChange={(e) => setResultFileName(e.target.value)}
+                    placeholder="e.g. ABPM_Result_LeeKokKeong.pdf"
+                    className="w-full rounded-xl border border-border bg-surface pl-9 pr-3 py-2 text-sm font-medium outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Diagnostic Findings / Summary Remarks
+                </label>
+                <textarea
+                  rows={3}
+                  value={resultSummaryNotes}
+                  onChange={(e) => setResultSummaryNotes(e.target.value)}
+                  placeholder="e.g. Mean 24H BP 142/88 mmHg. Daytime mean 148/92, nighttime mean 128/78. Nocturnal dipping preserved (13.5% systolic dip). Borderline systolic hypertension."
+                  className="w-full rounded-xl border border-border bg-surface p-3 text-sm font-medium outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUploadingReq(null)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90"
+                >
+                  <Check className="h-4 w-4" />
+                  Save & Publish Result to Cloud
                 </button>
               </div>
             </form>
@@ -974,16 +1226,16 @@ export function EchoAppointment() {
               <div className="flex items-start gap-3">
                 <FileText className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <p className="font-medium text-xs sm:text-sm leading-relaxed text-foreground">
-                  Please ensure that the patient has been provided with the Echocardiogram Request
-                  Form
+                  Please ensure that the patient has been provided with the 24 Hours Blood Pressure
+                  Monitoring Request Form
                 </p>
               </div>
 
               <div className="flex items-start gap-3 pt-2.5 border-t border-border/50">
                 <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                 <p className="font-semibold text-xs sm:text-sm leading-relaxed text-destructive">
-                  Patients who attend their scheduled appointment without the Echo Request Form will
-                  not be accepted for the examination
+                  Patients who attend their scheduled appointment without the 24 Hours Blood
+                  Pressure Monitoring Request Form will not be accepted for the examination
                 </p>
               </div>
             </div>
@@ -1083,7 +1335,7 @@ export function EchoAppointment() {
         </div>
       )}
 
-      {/* Official Echo Request Form Preview & Download Modal */}
+      {/* Official Request Form Preview & Download Modal */}
       {selectedFormReq && (
         <EchoFormModal request={selectedFormReq} onClose={() => setSelectedFormReq(null)} />
       )}

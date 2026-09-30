@@ -15,19 +15,27 @@ import {
   defaultEchoRequests,
   defaultStressRequests,
   defaultHolterRequests,
+  defaultBPRequests,
+  defaultLungFunctionRequests,
 } from "@/utils/appointmentStore";
+import { parseDateToTimestamp } from "@/utils/dateUtils";
 
 export interface UnifiedRequestNotification {
   id: string;
   patientName: string;
   mrn: string;
-  testType: "Echocardiogram" | "Exercise Stress Test" | "24H Holter";
+  testType:
+    | "Echocardiogram"
+    | "Exercise Stress Test"
+    | "24H Holter"
+    | "24H Blood Pressure"
+    | "Lung Function / Spirometry";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/echo" | "/stress-test" | "/holter";
+  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function";
 }
 
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
@@ -104,6 +112,8 @@ export interface AppointmentRecord {
 const ECHO_COLLECTION = "echo_appointments";
 const STRESS_COLLECTION = "stress_test_appointments";
 const HOLTER_COLLECTION = "holter_appointments";
+const BP_COLLECTION = "blood_pressure_appointments";
+const LFT_COLLECTION = "lung_function_appointments";
 
 // Initialize and seed default records to Firestore if empty
 let isSeeded = false;
@@ -131,6 +141,20 @@ export async function seedInitialDataIfEmpty() {
         await setDoc(doc(db, HOLTER_COLLECTION, item.id), item);
       }
     }
+
+    const bpSnap = await getDocs(collection(db, BP_COLLECTION));
+    if (bpSnap.empty) {
+      for (const item of defaultBPRequests) {
+        await setDoc(doc(db, BP_COLLECTION, item.id), item);
+      }
+    }
+
+    const lftSnap = await getDocs(collection(db, LFT_COLLECTION));
+    if (lftSnap.empty) {
+      for (const item of defaultLungFunctionRequests) {
+        await setDoc(doc(db, LFT_COLLECTION, item.id), item);
+      }
+    }
   } catch (err) {
     console.warn("Firestore seed note:", err);
   }
@@ -141,7 +165,7 @@ export async function seedInitialDataIfEmpty() {
 // -------------------------------------------------------------
 
 export function subscribeToAppointments(
-  collectionName: "echo" | "stress" | "holter",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
   facilityName: string | null,
   isAdmin: boolean,
   callback: (data: AppointmentRecord[]) => void,
@@ -151,7 +175,11 @@ export function subscribeToAppointments(
       ? ECHO_COLLECTION
       : collectionName === "stress"
         ? STRESS_COLLECTION
-        : HOLTER_COLLECTION;
+        : collectionName === "holter"
+          ? HOLTER_COLLECTION
+          : collectionName === "bp"
+            ? BP_COLLECTION
+            : LFT_COLLECTION;
 
   const colRef = collection(db, colName);
 
@@ -175,7 +203,7 @@ export function subscribeToAppointments(
         records.push(docSnap.data() as AppointmentRecord);
       });
       // Sort newest first
-      records.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      records.sort((a, b) => parseDateToTimestamp(b.createdAt) - parseDateToTimestamp(a.createdAt));
       callback(records);
     },
     (error) => {
@@ -192,7 +220,7 @@ export function subscribeToAppointments(
 // -------------------------------------------------------------
 
 export async function createAppointment(
-  collectionName: "echo" | "stress" | "holter",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
   appointment: AppointmentRecord,
 ) {
   const colName =
@@ -200,13 +228,17 @@ export async function createAppointment(
       ? ECHO_COLLECTION
       : collectionName === "stress"
         ? STRESS_COLLECTION
-        : HOLTER_COLLECTION;
+        : collectionName === "holter"
+          ? HOLTER_COLLECTION
+          : collectionName === "bp"
+            ? BP_COLLECTION
+            : LFT_COLLECTION;
 
   await setDoc(doc(db, colName, appointment.id), appointment);
 }
 
 export async function updateAppointment(
-  collectionName: "echo" | "stress" | "holter",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
   id: string,
   updates: Partial<AppointmentRecord>,
 ) {
@@ -215,7 +247,11 @@ export async function updateAppointment(
       ? ECHO_COLLECTION
       : collectionName === "stress"
         ? STRESS_COLLECTION
-        : HOLTER_COLLECTION;
+        : collectionName === "holter"
+          ? HOLTER_COLLECTION
+          : collectionName === "bp"
+            ? BP_COLLECTION
+            : LFT_COLLECTION;
 
   await updateDoc(doc(db, colName, id), updates);
 }
@@ -247,23 +283,14 @@ export function subscribeToAllPendingNotifications(
   let echoItems: AppointmentRecord[] = [];
   let stressItems: AppointmentRecord[] = [];
   let holterItems: AppointmentRecord[] = [];
+  let bpItems: AppointmentRecord[] = [];
+  let lftItems: AppointmentRecord[] = [];
 
   const updateAll = () => {
     const isPending = (status: string) =>
       status === "Pending Confirmation" || status === "Under Review";
 
-    const notifs: Array<{
-      id: string;
-      patientName: string;
-      mrn: string;
-      testType: "Echocardiogram" | "Exercise Stress Test" | "24H Holter";
-      procedureType: string;
-      urgency: "Routine" | "Urgent";
-      facilityName: string;
-      createdAt: string;
-      status: string;
-      route: "/echo" | "/stress-test" | "/holter";
-    }> = [];
+    const notifs: UnifiedRequestNotification[] = [];
 
     echoItems.forEach((r) => {
       if (isPending(r.status)) {
@@ -316,6 +343,40 @@ export function subscribeToAllPendingNotifications(
       }
     });
 
+    bpItems.forEach((r) => {
+      if (isPending(r.status)) {
+        notifs.push({
+          id: r.id,
+          patientName: r.patientName,
+          mrn: r.mrn,
+          testType: "24H Blood Pressure",
+          procedureType: r.procedureType,
+          urgency: r.urgency,
+          facilityName: r.facilityName,
+          createdAt: r.createdAt,
+          status: r.status,
+          route: "/blood-pressure",
+        });
+      }
+    });
+
+    lftItems.forEach((r) => {
+      if (isPending(r.status)) {
+        notifs.push({
+          id: r.id,
+          patientName: r.patientName,
+          mrn: r.mrn,
+          testType: "Lung Function / Spirometry",
+          procedureType: r.procedureType,
+          urgency: r.urgency,
+          facilityName: r.facilityName,
+          createdAt: r.createdAt,
+          status: r.status,
+          route: "/lung-function",
+        });
+      }
+    });
+
     callback(notifs);
   };
 
@@ -334,9 +395,21 @@ export function subscribeToAllPendingNotifications(
     updateAll();
   });
 
+  const unsubBP = subscribeToAppointments("bp", facilityName, isAdmin, (data) => {
+    bpItems = data;
+    updateAll();
+  });
+
+  const unsubLFT = subscribeToAppointments("lft", facilityName, isAdmin, (data) => {
+    lftItems = data;
+    updateAll();
+  });
+
   return () => {
     unsubEcho();
     unsubStress();
     unsubHolter();
+    unsubBP();
+    unsubLFT();
   };
 }

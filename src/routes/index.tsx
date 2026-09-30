@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, CalendarHeart, Activity, HeartPulse } from "lucide-react";
+import { ArrowRight, CalendarHeart, Activity, HeartPulse, Gauge, Wind } from "lucide-react";
 import { SiteHeader } from "@/components/hospital/SiteHeader";
 import { SiteFooter } from "@/components/hospital/SiteFooter";
 
@@ -11,13 +11,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Internal hub for Hospital Sultan Ismail: Non-Invasive Cardiovascular Laboratory, Echocardiogram, Exercise Stress Test, and 24 Hours Holter Monitoring.",
+          "Internal hub for Hospital Sultan Ismail: Non-Invasive Cardiovascular & Respiratory Laboratory, Echocardiogram, Exercise Stress Test, 24 Hours Holter Monitoring, 24 Hours Blood Pressure Monitoring, and Lung Function Test / Spirometry.",
       },
       { property: "og:title", content: "Hospital Sultan Ismail — Internal Medicine Clinic" },
       {
         property: "og:description",
         content:
-          "Cardiovascular laboratory appointment request modules (Echocardiogram, Exercise Stress Test, 24H Holter Monitoring) and clinical tools.",
+          "Diagnostic laboratory appointment request modules (Echocardiogram, Exercise Stress Test, 24H Holter, 24H Blood Pressure Monitoring, Lung Function Test / Spirometry) and clinical tools.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -49,6 +49,22 @@ const primaryModules = [
     label: "Module 03",
     title: "24 Hours Holter Monitoring",
     desc: "Request a 24-Hour continuous ambulatory ECG monitoring appointment for arrhythmia evaluation.",
+    meta: "Appointment Booking",
+  },
+  {
+    to: "/blood-pressure" as const,
+    icon: Gauge,
+    label: "Module 04",
+    title: "24 Hours Blood Pressure Monitoring",
+    desc: "Request a 24-Hour continuous Ambulatory Blood Pressure Monitoring (ABPM) appointment for hypertension evaluation.",
+    meta: "Appointment Booking",
+  },
+  {
+    to: "/lung-function" as const,
+    icon: Wind,
+    label: "Module 05",
+    title: "Lung Function Test / Spirometry",
+    desc: "Request a Pre- & Post-Bronchodilator Spirometry appointment for pulmonary airflow and respiratory evaluation.",
     meta: "Appointment Booking",
   },
 ];
@@ -86,11 +102,10 @@ function Index() {
         <div>
           <h2 className="text-xl font-bold text-heading">Lab Appointment Request Portals</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Submit referral and appointment booking requests for non-invasive cardiac diagnostic
-            tests.
+            Submit referral and appointment booking requests for non-invasive diagnostic tests.
           </p>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {primaryModules.map((s) => (
               <Link
                 key={s.to}
