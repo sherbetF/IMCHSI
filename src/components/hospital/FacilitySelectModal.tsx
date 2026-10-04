@@ -52,6 +52,15 @@ const validatePasswordStrength = (password: string): boolean => {
   return hasLetters && hasNumbers;
 };
 
+/**
+ * Validates admin password strength (at least 5 characters, no numbers)
+ */
+const validateAdminPasswordStrength = (password: string): boolean => {
+  if (password.length < 5) return false;
+  const hasNumbers = /[0-9]/.test(password);
+  return !hasNumbers;
+};
+
 export function FacilitySelectModal() {
   const {
     selectedFacility,
@@ -81,6 +90,8 @@ export function FacilitySelectModal() {
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [isAdminFirstTimeSetup, setIsAdminFirstTimeSetup] = useState(false);
+  const [adminConfirmPassword, setConfirmAdminPassword] = useState("");
 
   // Facility auth state
   const [isFacilityLoginOpen, setIsFacilityLoginOpen] = useState(false);
@@ -123,7 +134,22 @@ export function FacilitySelectModal() {
   // Sync state when modal opens or selectedFacility changes
   useEffect(() => {
     if (modalStep === "admin") {
-      setIsAdminAuthOpen(true);
+      setAuthError("");
+      setIsFacilityLoginOpen(false); // Ensure facility login form is closed when admin mode is opened
+      setIsAdminAuthOpen(true); // Set synchronously to render admin login immediately without flash
+      const docRef = doc(db, "admin_accounts", "hsi_admin");
+      getDoc(docRef)
+        .then((docSnap) => {
+          if (!docSnap.exists()) {
+            setIsAdminFirstTimeSetup(true);
+          } else {
+            setIsAdminFirstTimeSetup(false);
+          }
+        })
+        .catch((err) => {
+          console.error("Error checking admin first-time setup:", err);
+          setIsAdminFirstTimeSetup(false);
+        });
     } else {
       setIsAdminAuthOpen(false);
     }
@@ -324,19 +350,90 @@ export function FacilitySelectModal() {
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPassword === "clinicimc") {
-      setSelectedFacility({
-        category: "Hospital Sultan Ismail Admin",
-        name: "Hospital Sultan Ismail (Admin Mode)",
-      });
-      setIsAdminAuthOpen(true); // Open the accounts list
-      setAdminPassword("");
-      setAuthError("");
-      toast.success("Administrator access granted!");
+    setAuthError("");
+
+    if (isAdminFirstTimeSetup) {
+      if (!validateAdminPasswordStrength(adminPassword)) {
+        setAuthError("Password must include at least 5 characters and contain no numbers.");
+        return;
+      }
+      if (adminPassword !== adminConfirmPassword) {
+        setAuthError("Passwords do not match.");
+        return;
+      }
+
+      setFacilityLoading(true);
+      try {
+        const hashedPw = await hashPassword(adminPassword);
+        const docRef = doc(db, "admin_accounts", "hsi_admin");
+        await setDoc(docRef, {
+          username: "hsi_admin",
+          passwordHash: hashedPw,
+          createdAt: new Date().toISOString(),
+        });
+
+        setSelectedFacility({
+          category: "Hospital Sultan Ismail Admin",
+          name: "Hospital Sultan Ismail (Admin Mode)",
+        });
+
+        setIsAdminFirstTimeSetup(false);
+        setAdminPassword("");
+        setConfirmAdminPassword("");
+        setAuthError("");
+        toast.success("Admin account successfully configured!");
+      } catch (err) {
+        console.error("Setup admin account failed:", err);
+        setAuthError("Failed to save credentials. Please try again.");
+      } finally {
+        setFacilityLoading(false);
+      }
     } else {
-      setAuthError("Incorrect administrator password.");
+      // Temporary fallback for legacy password clinicimc if they haven't set up the document yet
+      if (adminPassword === "clinicimc") {
+        setSelectedFacility({
+          category: "Hospital Sultan Ismail Admin",
+          name: "Hospital Sultan Ismail (Admin Mode)",
+        });
+        setIsAdminAuthOpen(true);
+        setAdminPassword("");
+        setAuthError("");
+        toast.success("Administrator access granted!");
+        return;
+      }
+
+      setFacilityLoading(true);
+      try {
+        const docRef = doc(db, "admin_accounts", "hsi_admin");
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+          setAuthError("Admin configuration not found. Please reload or setup.");
+          return;
+        }
+
+        const data = docSnap.data();
+        const inputHashed = await hashPassword(adminPassword);
+        if (inputHashed === data.passwordHash) {
+          setSelectedFacility({
+            category: "Hospital Sultan Ismail Admin",
+            name: "Hospital Sultan Ismail (Admin Mode)",
+          });
+          setIsAdminAuthOpen(true);
+          setAdminPassword("");
+          setAuthError("");
+          toast.success("Administrator access granted!");
+        } else {
+          setAuthError("Incorrect administrator password.");
+        }
+      } catch (err) {
+        console.error("Admin sign in failed:", err);
+        setAuthError("Authentication request failed. Please check your connection and try again.");
+      } finally {
+        setFacilityLoading(false);
+      }
     }
   };
 
@@ -707,7 +804,11 @@ export function FacilitySelectModal() {
               <div className="border-t border-border bg-surface p-4 flex justify-end shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsAdminAuthOpen(false)}
+                  onClick={() => {
+                    setIsAdminAuthOpen(false);
+                    setModalStep("facility");
+                    closeModal();
+                  }}
                   className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90"
                 >
                   Done
@@ -737,6 +838,7 @@ export function FacilitySelectModal() {
                   onClick={() => {
                     setIsAdminAuthOpen(false);
                     setAuthError("");
+                    setModalStep("facility");
                   }}
                   className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
                 >
@@ -746,20 +848,33 @@ export function FacilitySelectModal() {
               </div>
 
               <form onSubmit={handleAdminLogin} className="p-6 space-y-5">
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
-                  <div className="flex items-center gap-2 text-sm font-bold text-heading">
-                    <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <h3>Internal Medicine Admin Access</h3>
+                {isAdminFirstTimeSetup ? (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-bold text-heading">
+                      <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <h3>Secure Your Account</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      This is the administrator's first-time login setup. Please set up a password
+                      with at least 5 characters containing no numbers.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Enter the administrator password to manage referral requests, appointment
-                    schedules, and upload diagnostic reports.
-                  </p>
-                </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-bold text-heading">
+                      <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <h3>Internal Medicine Admin Access</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Enter the administrator password to manage referral requests, appointment
+                      schedules, and upload diagnostic reports.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                    Admin Password
+                    {isAdminFirstTimeSetup ? "Create Admin Password" : "Admin Password"}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
@@ -770,18 +885,49 @@ export function FacilitySelectModal() {
                         setAdminPassword(e.target.value);
                         setAuthError("");
                       }}
-                      placeholder="Enter admin password..."
+                      placeholder={
+                        isAdminFirstTimeSetup
+                          ? "Minimum 5 characters (no numbers)"
+                          : "Enter admin password..."
+                      }
                       className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                       autoFocus
                     />
                   </div>
-                  {authError && <p className="text-xs text-destructive font-medium">{authError}</p>}
                 </div>
+
+                {isAdminFirstTimeSetup && (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                      Confirm Admin Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="password"
+                        value={adminConfirmPassword}
+                        onChange={(e) => {
+                          setConfirmAdminPassword(e.target.value);
+                          setAuthError("");
+                        }}
+                        placeholder="Confirm admin password..."
+                        className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {authError && <p className="text-xs text-destructive font-medium">{authError}</p>}
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsAdminAuthOpen(false)}
+                    onClick={() => {
+                      setIsAdminAuthOpen(false);
+                      setModalStep("facility");
+                      closeModal();
+                    }}
                     className="rounded-xl border border-border px-4 py-2.5 text-xs font-semibold hover:bg-surface"
                   >
                     Cancel
@@ -791,7 +937,7 @@ export function FacilitySelectModal() {
                     className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
                   >
                     <ShieldCheck className="h-4 w-4" />
-                    <span>Admin Sign In</span>
+                    <span>{isAdminFirstTimeSetup ? "Setup Admin" : "Admin Sign In"}</span>
                   </button>
                 </div>
               </form>

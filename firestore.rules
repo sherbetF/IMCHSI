@@ -4,19 +4,12 @@ service cloud.firestore {
     
     // Facility accounts security rules
     match /facility_accounts/{facilityName} {
-      // Allow individual facility document fetch for authentication and verification
-      allow get: if true;
-      
-      // Allow list reading for administrators
-      allow list: if true;
-      
-      // Allow creating an account (for first-time self-service configuration)
-      allow create: if request.resource.data.facilityName == facilityName
-                    && request.resource.data.status == "Active"
-                    && request.resource.data.isFirstTime == false;
-                    
-      // Allow updates to change status or reset passwords
-      allow update: if true;
+      allow read, write: if true;
+    }
+
+    // Admin accounts security rules
+    match /admin_accounts/{adminId} {
+      allow read, write: if true;
     }
 
     // Appointment and report records collections
@@ -45,6 +38,10 @@ service cloud.firestore {
     }
     
     match /rheumatology_appointments/{docId} {
+      allow read, write: if true;
+    }
+
+    match /outsource_reports/{docId} {
       allow read, write: if true;
     }
   }
