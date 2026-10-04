@@ -16,7 +16,12 @@ import {
 } from "lucide-react";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
 import { FACILITIES_DATA, FacilityCategory } from "@/data/facilities";
-import { useFacility, getFacilityId, getFacilityAuthEmail } from "@/context/FacilityContext";
+import {
+  useFacility,
+  getFacilityId,
+  getFacilityAuthEmail,
+  ACTIVE_SESSION_TOKEN_KEY,
+} from "@/context/FacilityContext";
 import { db, auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import {
@@ -242,6 +247,7 @@ export function FacilitySelectModal() {
               createdAt: new Date().toISOString(),
             });
           }
+          sessionStorage.setItem(ACTIVE_SESSION_TOKEN_KEY, user.uid);
           setSelectedFacility({
             category: selectedCategory,
             name: selectedName,
@@ -386,6 +392,7 @@ export function FacilitySelectModal() {
       }
 
       setIsFirstTimeFacility(false);
+      sessionStorage.setItem(ACTIVE_SESSION_TOKEN_KEY, user.uid);
       setSelectedFacility({
         category: selectedCategory,
         name: selectedName,
@@ -512,6 +519,7 @@ export function FacilitySelectModal() {
         }
       }
 
+      sessionStorage.setItem(ACTIVE_SESSION_TOKEN_KEY, user.uid);
       setSelectedFacility({
         category: "Hospital Sultan Ismail Admin",
         name: "Hospital Sultan Ismail (Admin Mode)",
