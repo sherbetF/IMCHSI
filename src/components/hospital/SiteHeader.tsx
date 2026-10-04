@@ -269,7 +269,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-3">
-            {location.pathname === "/" && !selectedFacility ? (
+            {!selectedFacility ? (
               /* Admin Login Button on Main Landing Page upon opening website */
               <button
                 type="button"
@@ -280,7 +280,7 @@ export function SiteHeader() {
               >
                 <ShieldCheck className="h-4 w-4" />
               </button>
-            ) : location.pathname === "/" && isAdmin ? (
+            ) : isAdmin ? (
               /* Hospital Admin Logged In Badge */
               <button
                 type="button"
@@ -292,8 +292,10 @@ export function SiteHeader() {
                 <ShieldCheck className="h-4 w-4" />
                 <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background animate-pulse" />
               </button>
-            ) : (
-              /* Notification Bell Dropdown Button once customer logs in to their facility or visits procedure pages */
+            ) : null}
+
+            {/* Notification Bell Dropdown Button for logged in users (Facility or Admin) beside Contact Us */}
+            {selectedFacility && (
               <div className="relative" ref={notifRef}>
                 <button
                   onClick={() => setIsNotifOpen(!isNotifOpen)}
@@ -302,7 +304,11 @@ export function SiteHeader() {
                       ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
                       : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
                   }`}
-                  title="Appointment Requests & Notifications"
+                  title={
+                    isAdmin
+                      ? "Pending Referral Notifications"
+                      : "Appointment Requests & Notifications"
+                  }
                   aria-label="Notifications"
                 >
                   <Bell className="h-4 w-4" />
@@ -357,7 +363,13 @@ export function SiteHeader() {
                           return (
                             <div
                               key={n.id}
-                              className={`rounded-xl border p-3 text-xs transition-all ${
+                              onClick={() => {
+                                if (n.route) {
+                                  navigate({ to: n.route });
+                                  setIsNotifOpen(false);
+                                }
+                              }}
+                              className={`rounded-xl border p-3 text-xs transition-all cursor-pointer hover:shadow-md ${
                                 isScheduled
                                   ? isRead
                                     ? "border-emerald-500/30 bg-emerald-500/5 text-muted-foreground"
