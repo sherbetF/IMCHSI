@@ -18,11 +18,11 @@ function getOrCreateFirestore() {
     if (firebaseConfig.firestoreDatabaseId) {
       return initializeFirestore(
         app,
-        { experimentalAutoDetectLongPolling: true },
+        { experimentalForceLongPolling: true },
         firebaseConfig.firestoreDatabaseId,
       );
     } else {
-      return initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+      return initializeFirestore(app, { experimentalForceLongPolling: true });
     }
   } catch (error) {
     if (firebaseConfig.firestoreDatabaseId) {

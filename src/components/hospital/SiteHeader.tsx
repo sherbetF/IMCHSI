@@ -11,9 +11,11 @@ import {
   PhoneCall,
   Bell,
   CheckCheck,
-  ExternalLink,
   Menu,
   AlertTriangle,
+  CalendarCheck,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
@@ -286,9 +288,7 @@ export function SiteHeader() {
                   <div className="flex items-center justify-between border-b border-border pb-3">
                     <div className="flex items-center gap-2">
                       <Bell className={`h-4 w-4 ${isAdmin ? "text-amber-500" : "text-primary"}`} />
-                      <h4 className="text-sm font-bold text-heading">
-                        {isAdmin ? "New Appointment Requests" : "Notifications"}
-                      </h4>
+                      <h4 className="text-sm font-bold text-heading">Notifications</h4>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                           isAdmin
@@ -312,25 +312,38 @@ export function SiteHeader() {
                   <div className="mt-3 max-h-80 overflow-y-auto space-y-2.5 pr-1">
                     {notifications.length === 0 ? (
                       <p className="py-6 text-center text-xs text-muted-foreground">
-                        No pending appointment requests or updates.
+                        {isAdmin
+                          ? "No pending appointment requests."
+                          : "No appointment schedule updates or notifications."}
                       </p>
                     ) : (
                       notifications.map((n) => {
                         const isRead = readIds.includes(n.id);
+                        const isScheduled = n.notificationType === "scheduled";
+                        const isRejected = n.notificationType === "rejected";
+
                         return (
                           <div
                             key={n.id}
                             className={`rounded-xl border p-3 text-xs transition-all ${
-                              isRead
-                                ? "border-border/50 bg-background/50 text-muted-foreground"
-                                : isAdmin
-                                  ? "border-amber-500/40 bg-amber-500/10 text-foreground"
-                                  : "border-primary/40 bg-primary/5 text-foreground"
+                              isScheduled
+                                ? isRead
+                                  ? "border-emerald-500/30 bg-emerald-500/5 text-muted-foreground"
+                                  : "border-emerald-500/50 bg-emerald-500/15 text-foreground shadow-xs"
+                                : isRejected
+                                  ? isRead
+                                    ? "border-destructive/20 bg-destructive/5 text-muted-foreground"
+                                    : "border-destructive/40 bg-destructive/10 text-foreground"
+                                  : isRead
+                                    ? "border-border/50 bg-background/50 text-muted-foreground"
+                                    : isAdmin
+                                      ? "border-amber-500/40 bg-amber-500/10 text-foreground"
+                                      : "border-primary/40 bg-primary/5 text-foreground"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-mono text-xs font-bold text-primary">
-                                {n.id}
+                                {n.rawId || n.id}
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <span
@@ -342,7 +355,15 @@ export function SiteHeader() {
                                 >
                                   {n.urgency}
                                 </span>
-                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                    isScheduled
+                                      ? "bg-emerald-600 text-white"
+                                      : isRejected
+                                        ? "bg-destructive text-white"
+                                        : "bg-primary/15 text-primary"
+                                  }`}
+                                >
                                   {n.status}
                                 </span>
                               </div>
@@ -351,23 +372,25 @@ export function SiteHeader() {
                             <div className="mt-1">
                               <p className="font-bold text-heading text-xs">{n.patientName}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                MRN: {n.mrn} • {n.testType}
+                                {n.mrn} • {n.testType}
                               </p>
                             </div>
 
-                            <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2 text-[10px] text-muted-foreground">
-                              <span>Facility: {n.facilityName}</span>
-                              <Link
-                                to={n.route}
-                                onClick={() => {
-                                  markNotificationAsRead(n.id);
-                                  setIsNotifOpen(false);
-                                }}
-                                className="flex items-center gap-1 font-bold text-primary hover:underline"
-                              >
-                                Review <ExternalLink className="h-3 w-3" />
-                              </Link>
-                            </div>
+                            {/* Scheduled appointment date highlight box */}
+                            {isScheduled && n.scheduledDate && (
+                              <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 font-mono">
+                                <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                <span>Appointment: {n.scheduledDate}</span>
+                              </div>
+                            )}
+
+                            {/* Rejection reason box */}
+                            {isRejected && n.rejectReason && (
+                              <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-[11px] text-destructive">
+                                <XCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Reason: {n.rejectReason}</span>
+                              </div>
+                            )}
                           </div>
                         );
                       })

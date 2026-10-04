@@ -23,6 +23,7 @@ import { parseDateToTimestamp } from "@/utils/dateUtils";
 
 export interface UnifiedRequestNotification {
   id: string;
+  rawId: string;
   patientName: string;
   mrn: string;
   testType:
@@ -30,13 +31,17 @@ export interface UnifiedRequestNotification {
     | "Exercise Stress Test"
     | "24H Holter"
     | "24H Blood Pressure"
-    | "Lung Function / Spirometry";
+    | "Lung Function / Spirometry"
+    | "Outsource Radiology & Diagnostic Report";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function";
+  scheduledDate?: string;
+  rejectReason?: string;
+  notificationType: "scheduled" | "rejected" | "confirmed" | "pending" | "completed";
+  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function" | "/outsource";
 }
 
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
@@ -303,111 +308,129 @@ export function subscribeToAllPendingNotifications(
   let outsourceItems: AppointmentRecord[] = [];
 
   const updateAll = () => {
-    const isPending = (status: string) =>
-      status === "Pending Confirmation" || status === "Under Review";
-
     const notifs: UnifiedRequestNotification[] = [];
 
-    echoItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "Echocardiogram",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/echo",
-        });
-      }
-    });
+    const processRecords = (
+      items: AppointmentRecord[],
+      testType: UnifiedRequestNotification["testType"],
+      route: UnifiedRequestNotification["route"],
+    ) => {
+      items.forEach((r) => {
+        if (isAdmin) {
+          // Admin receives notifications for pending requests needing review
+          if (r.status === "Pending Confirmation" || r.status === "Under Review") {
+            notifs.push({
+              id: `${r.id}-pending`,
+              rawId: r.id,
+              patientName: r.patientName,
+              mrn: r.mrn,
+              testType,
+              procedureType: r.procedureType,
+              urgency: r.urgency,
+              facilityName: r.facilityName,
+              createdAt: r.createdAt,
+              status: r.status,
+              scheduledDate: r.scheduledDate,
+              rejectReason: r.rejectReason,
+              notificationType: "pending",
+              route,
+            });
+          }
+        } else {
+          // Customers/Facilities receive notifications when admin schedules, updates, or acts on their appointments
+          const isScheduled =
+            r.status === "Scheduled" || (!!r.scheduledDate && r.scheduledDate !== "----------");
+          const isRejected = r.status === "Rejected";
+          const isCompleted = r.status === "Completed - Result Ready";
+          const isPending = r.status === "Pending Confirmation" || r.status === "Under Review";
 
-    stressItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "Exercise Stress Test",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/stress-test",
-        });
-      }
-    });
+          if (isScheduled) {
+            notifs.push({
+              id: `${r.id}-scheduled-${r.scheduledDate || "done"}`,
+              rawId: r.id,
+              patientName: r.patientName,
+              mrn: r.mrn,
+              testType,
+              procedureType: r.procedureType,
+              urgency: r.urgency,
+              facilityName: r.facilityName,
+              createdAt: r.createdAt,
+              status: "Scheduled",
+              scheduledDate: r.scheduledDate,
+              rejectReason: r.rejectReason,
+              notificationType: "scheduled",
+              route,
+            });
+          } else if (isRejected) {
+            notifs.push({
+              id: `${r.id}-rejected`,
+              rawId: r.id,
+              patientName: r.patientName,
+              mrn: r.mrn,
+              testType,
+              procedureType: r.procedureType,
+              urgency: r.urgency,
+              facilityName: r.facilityName,
+              createdAt: r.createdAt,
+              status: "Rejected",
+              scheduledDate: r.scheduledDate,
+              rejectReason: r.rejectReason,
+              notificationType: "rejected",
+              route,
+            });
+          } else if (isCompleted) {
+            notifs.push({
+              id: `${r.id}-completed`,
+              rawId: r.id,
+              patientName: r.patientName,
+              mrn: r.mrn,
+              testType,
+              procedureType: r.procedureType,
+              urgency: r.urgency,
+              facilityName: r.facilityName,
+              createdAt: r.createdAt,
+              status: r.status,
+              scheduledDate: r.scheduledDate,
+              rejectReason: r.rejectReason,
+              notificationType: "completed",
+              route,
+            });
+          } else if (isPending) {
+            notifs.push({
+              id: `${r.id}-pending`,
+              rawId: r.id,
+              patientName: r.patientName,
+              mrn: r.mrn,
+              testType,
+              procedureType: r.procedureType,
+              urgency: r.urgency,
+              facilityName: r.facilityName,
+              createdAt: r.createdAt,
+              status: r.status,
+              scheduledDate: r.scheduledDate,
+              rejectReason: r.rejectReason,
+              notificationType: "pending",
+              route,
+            });
+          }
+        }
+      });
+    };
 
-    holterItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "24H Holter",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/holter",
-        });
-      }
-    });
+    processRecords(echoItems, "Echocardiogram", "/echo");
+    processRecords(stressItems, "Exercise Stress Test", "/stress-test");
+    processRecords(holterItems, "24H Holter", "/holter");
+    processRecords(bpItems, "24H Blood Pressure", "/blood-pressure");
+    processRecords(lftItems, "Lung Function / Spirometry", "/lung-function");
+    processRecords(outsourceItems, "Outsource Radiology & Diagnostic Report", "/outsource");
 
-    bpItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "24H Blood Pressure",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/blood-pressure",
-        });
+    // Sort: For customers, prioritize scheduled items first, then by date descending
+    notifs.sort((a, b) => {
+      if (!isAdmin) {
+        if (a.notificationType === "scheduled" && b.notificationType !== "scheduled") return -1;
+        if (b.notificationType === "scheduled" && a.notificationType !== "scheduled") return 1;
       }
-    });
-
-    lftItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "Lung Function / Spirometry",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/lung-function",
-        });
-      }
-    });
-
-    outsourceItems.forEach((r) => {
-      if (isPending(r.status)) {
-        notifs.push({
-          id: r.id,
-          patientName: r.patientName,
-          mrn: r.mrn,
-          testType: "Outsource Radiology & Diagnostic Report",
-          procedureType: r.procedureType,
-          urgency: r.urgency,
-          facilityName: r.facilityName,
-          createdAt: r.createdAt,
-          status: r.status,
-          route: "/outsource",
-        });
-      }
+      return new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime();
     });
 
     callback(notifs);

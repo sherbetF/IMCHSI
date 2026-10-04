@@ -204,6 +204,8 @@ export function HolterAppointment() {
       errors.mrn = "Identification No. can only contain letters and numbers (no symbols)";
     }
     if (!formData.contactNumber.trim()) errors.contactNumber = "Contact phone number is required";
+    if (!formData.referringDoctor.trim())
+      errors.referringDoctor = "Referring doctor name is required";
     if (!formData.department.trim()) errors.department = "Department is required";
     if (!formData.clinicalIndication.trim())
       errors.clinicalIndication = "Clinical indication is required";
@@ -593,7 +595,7 @@ export function HolterAppointment() {
                   <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-semibold text-heading">
-                        Referring Doctor
+                        Referring Doctor <span className="text-destructive">*</span>
                       </label>
                       <input
                         type="text"
@@ -604,6 +606,11 @@ export function HolterAppointment() {
                         placeholder="e.g. Dr. Lim Wei Hong"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
+                      {formErrors.referringDoctor && (
+                        <p className="mt-1 text-xs text-destructive">
+                          {formErrors.referringDoctor}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -614,7 +621,7 @@ export function HolterAppointment() {
                         type="text"
                         value={formData.department}
                         onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                        placeholder="e.g. Cardiology Department"
+                        placeholder="e.g. Outpatient Department"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
                       {formErrors.department && (
