@@ -44,12 +44,10 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     setIsMounted(true);
+    // Always start with no facility selected upon opening website fresh
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setSelectedFacilityState(parsed);
-      }
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     } catch {
       // ignore
     }
@@ -68,7 +66,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSelectedFacilityState(facility);
     if (facility) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(facility));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(facility));
       } catch {
         // ignore
       }
@@ -78,9 +76,13 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setOnFacilitySuccessCb(null);
       }
     } else {
-      localStorage.removeItem(STORAGE_KEY);
-      setModalStep("facility");
-      setIsModalOpen(true);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      setIsModalOpen(false);
     }
   };
 
