@@ -8,13 +8,21 @@ export interface UnifiedRequestNotification {
     | "24H Holter"
     | "24H Blood Pressure"
     | "Lung Function / Spirometry"
-    | "Outsource Radiology & Diagnostic Report";
+    | "Outsource Radiology & Diagnostic Report"
+    | "Rheumatology";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function" | "/outsource";
+  route:
+    | "/echo"
+    | "/stress-test"
+    | "/holter"
+    | "/blood-pressure"
+    | "/lung-function"
+    | "/outsource"
+    | "/rheumatology";
 }
 
 const ECHO_KEY = "hsi_echo_requests_v2";
@@ -23,6 +31,7 @@ const HOLTER_KEY = "hsi_holter_requests_v2";
 const BP_KEY = "hsi_bloodpressure_requests_v2";
 const LFT_KEY = "hsi_lungfunction_requests_v2";
 const OUTSOURCE_KEY = "hsi_outsource_requests_v1";
+const RHEUMATOLOGY_KEY = "hsi_rheumatology_requests_v1";
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
 
 export const defaultEchoRequests = [
@@ -264,6 +273,63 @@ export const defaultOutsourceRequests = [
     diagnosis: "Severe Triple Vessel Disease (TVD)",
     status: "Under Review",
     createdAt: "20/08/2026 14:00",
+  },
+];
+
+export const defaultRheumatologyRequests = [
+  {
+    id: "RHEUM-2026-1042",
+    facilityName: "Hospital Sultan Ismail",
+    facilityCategory: "Hospital",
+    patientName: "Ahmad Razak bin Abdullah",
+    mrn: "ID-884920",
+    contactNumber: "+60 12-345 6789",
+    email: "ahmad.razak@example.com",
+    procedureType: "Rheumatology Clinical Consultation",
+    urgency: "Routine",
+    referringDoctor: "Dr. Lim Wei Hong (Internal Medicine)",
+    department: "Internal Medicine Clinic",
+    clinicalIndication:
+      "Persistent polyarthritis with morning stiffness > 1 hour, elevated ESR/CRP",
+    diagnosis: "Active Rheumatoid Arthritis (Seropositive)",
+    status: "Confirmed",
+    createdAt: "15/08/2026 10:15",
+  },
+  {
+    id: "RHEUM-2026-1043",
+    facilityName: "KK Sultan Ismail",
+    facilityCategory: "Klinik Kesihatan",
+    patientName: "Siti Nurhaliza binti Ibrahim",
+    mrn: "ID-773192",
+    contactNumber: "+60 17-889 1234",
+    email: "siti.ibrahim@example.com",
+    procedureType: "Rheumatology Clinical Consultation",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Sarah Tan (Family Medicine)",
+    department: "Klinik Kesihatan Sultan Ismail",
+    clinicalIndication:
+      "Malar rash, photosensitivity, inflammatory joint pains, positive ANA titre 1:640",
+    diagnosis: "Systemic Lupus Erythematosus (SLE) - Initial Evaluation",
+    status: "Pending Confirmation",
+    createdAt: "16/08/2026 08:45",
+  },
+  {
+    id: "RHEUM-2026-1044",
+    facilityName: "KK Ulu Tiram",
+    facilityCategory: "Klinik Kesihatan",
+    patientName: "Tan Kah Poh",
+    mrn: "ID-910243",
+    contactNumber: "+60 19-223 4455",
+    email: "kp.tan@example.com",
+    procedureType: "Rheumatology Clinical Consultation",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Rajan Nair (Orthopaedics)",
+    department: "Orthopaedic Clinic",
+    clinicalIndication:
+      "Chronic inflammatory back pain, bilateral sacroiliitis on MRI, HLA-B27 positive",
+    diagnosis: "Ankylosing Spondylitis / Axial Spondyloarthritis",
+    status: "Under Review",
+    createdAt: "16/08/2026 09:30",
   },
 ];
 

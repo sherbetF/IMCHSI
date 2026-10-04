@@ -18,6 +18,7 @@ import {
   defaultBPRequests,
   defaultLungFunctionRequests,
   defaultOutsourceRequests,
+  defaultRheumatologyRequests,
 } from "@/utils/appointmentStore";
 import { parseDateToTimestamp } from "@/utils/dateUtils";
 
@@ -32,7 +33,8 @@ export interface UnifiedRequestNotification {
     | "24H Holter"
     | "24H Blood Pressure"
     | "Lung Function / Spirometry"
-    | "Outsource Radiology & Diagnostic Report";
+    | "Outsource Radiology & Diagnostic Report"
+    | "Rheumatology";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
@@ -41,7 +43,14 @@ export interface UnifiedRequestNotification {
   scheduledDate?: string;
   rejectReason?: string;
   notificationType: "scheduled" | "rejected" | "confirmed" | "pending" | "completed";
-  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function" | "/outsource";
+  route:
+    | "/echo"
+    | "/stress-test"
+    | "/holter"
+    | "/blood-pressure"
+    | "/lung-function"
+    | "/outsource"
+    | "/rheumatology";
 }
 
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
@@ -121,6 +130,7 @@ const HOLTER_COLLECTION = "holter_appointments";
 const BP_COLLECTION = "blood_pressure_appointments";
 const LFT_COLLECTION = "lung_function_appointments";
 const OUTSOURCE_COLLECTION = "outsource_appointments";
+const RHEUMATOLOGY_COLLECTION = "rheumatology_appointments";
 
 // Initialize and seed default records to Firestore if empty
 let isSeeded = false;
@@ -169,6 +179,13 @@ export async function seedInitialDataIfEmpty() {
         await setDoc(doc(db, OUTSOURCE_COLLECTION, item.id), item);
       }
     }
+
+    const rheumSnap = await getDocs(collection(db, RHEUMATOLOGY_COLLECTION));
+    if (rheumSnap.empty) {
+      for (const item of defaultRheumatologyRequests) {
+        await setDoc(doc(db, RHEUMATOLOGY_COLLECTION, item.id), item);
+      }
+    }
   } catch (err) {
     console.warn("Firestore seed note:", err);
   }
@@ -179,7 +196,7 @@ export async function seedInitialDataIfEmpty() {
 // -------------------------------------------------------------
 
 export function subscribeToAppointments(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
   facilityName: string | null,
   isAdmin: boolean,
   callback: (data: AppointmentRecord[]) => void,
@@ -195,7 +212,9 @@ export function subscribeToAppointments(
             ? BP_COLLECTION
             : collectionName === "lft"
               ? LFT_COLLECTION
-              : OUTSOURCE_COLLECTION;
+              : collectionName === "rheumatology"
+                ? RHEUMATOLOGY_COLLECTION
+                : OUTSOURCE_COLLECTION;
 
   const colRef = collection(db, colName);
 
@@ -236,7 +255,7 @@ export function subscribeToAppointments(
 // -------------------------------------------------------------
 
 export async function createAppointment(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
   appointment: AppointmentRecord,
 ) {
   const colName =
@@ -250,13 +269,15 @@ export async function createAppointment(
             ? BP_COLLECTION
             : collectionName === "lft"
               ? LFT_COLLECTION
-              : OUTSOURCE_COLLECTION;
+              : collectionName === "rheumatology"
+                ? RHEUMATOLOGY_COLLECTION
+                : OUTSOURCE_COLLECTION;
 
   await setDoc(doc(db, colName, appointment.id), appointment);
 }
 
 export async function updateAppointment(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
   id: string,
   updates: Partial<AppointmentRecord>,
 ) {
@@ -271,7 +292,9 @@ export async function updateAppointment(
             ? BP_COLLECTION
             : collectionName === "lft"
               ? LFT_COLLECTION
-              : OUTSOURCE_COLLECTION;
+              : collectionName === "rheumatology"
+                ? RHEUMATOLOGY_COLLECTION
+                : OUTSOURCE_COLLECTION;
 
   await updateDoc(doc(db, colName, id), updates);
 }
@@ -306,6 +329,7 @@ export function subscribeToAllPendingNotifications(
   let bpItems: AppointmentRecord[] = [];
   let lftItems: AppointmentRecord[] = [];
   let outsourceItems: AppointmentRecord[] = [];
+  let rheumatologyItems: AppointmentRecord[] = [];
 
   const updateAll = () => {
     const notifs: UnifiedRequestNotification[] = [];
@@ -423,6 +447,7 @@ export function subscribeToAllPendingNotifications(
     processRecords(bpItems, "24H Blood Pressure", "/blood-pressure");
     processRecords(lftItems, "Lung Function / Spirometry", "/lung-function");
     processRecords(outsourceItems, "Outsource Radiology & Diagnostic Report", "/outsource");
+    processRecords(rheumatologyItems, "Rheumatology", "/rheumatology");
 
     // Sort: For customers, prioritize scheduled items first, then by date descending
     notifs.sort((a, b) => {
@@ -466,6 +491,16 @@ export function subscribeToAllPendingNotifications(
     updateAll();
   });
 
+  const unsubRheumatology = subscribeToAppointments(
+    "rheumatology",
+    facilityName,
+    isAdmin,
+    (data) => {
+      rheumatologyItems = data;
+      updateAll();
+    },
+  );
+
   return () => {
     unsubEcho();
     unsubStress();
@@ -473,5 +508,6 @@ export function subscribeToAllPendingNotifications(
     unsubBP();
     unsubLFT();
     unsubOutsource();
+    unsubRheumatology();
   };
 }

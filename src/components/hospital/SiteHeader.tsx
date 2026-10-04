@@ -26,12 +26,14 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   UnifiedRequestNotification,
+  seedInitialDataIfEmpty,
 } from "@/services/firebaseAppointments";
 
 const nav = [
   { label: "Home", to: "/" as const },
   { label: "NICL Procedure", to: "/" as const, isAppointmentScroll: true },
   { label: "Outsource", to: "/outsource" as const },
+  { label: "Rheumatology", to: "/rheumatology" as const },
 ];
 
 function useClock() {
@@ -65,6 +67,7 @@ export function SiteHeader() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    seedInitialDataIfEmpty();
     const unsub = subscribeToAllPendingNotifications(
       selectedFacility?.name || null,
       isAdmin,
@@ -224,20 +227,21 @@ export function SiteHeader() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => {
-                      if (isOutsourceAuthenticated) {
-                        navigate({ to: "/outsource" });
-                      } else {
-                        openOutsourceAuth(() => {
-                          navigate({ to: "/outsource" });
-                        });
-                      }
-                    }}
-                    className={`text-sm font-medium transition-colors cursor-pointer ${
-                      location.pathname === "/outsource"
-                        ? "text-primary font-semibold"
-                        : "text-foreground hover:text-primary"
-                    }`}
+                    disabled
+                    className="text-sm font-medium text-muted-foreground/60 cursor-not-allowed select-none"
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+
+              if (item.to === "/rheumatology") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled
+                    className="text-sm font-medium text-muted-foreground/60 cursor-not-allowed select-none"
                   >
                     {item.label}
                   </button>
@@ -437,7 +441,10 @@ export function SiteHeader() {
             {selectedFacility && (
               <button
                 type="button"
-                onClick={() => setSelectedFacility(null)}
+                onClick={() => {
+                  setSelectedFacility(null);
+                  navigate({ to: "/" });
+                }}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20 shadow-sm"
                 title="Logout"
                 aria-label="Logout"
@@ -484,21 +491,21 @@ export function SiteHeader() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      if (isOutsourceAuthenticated) {
-                        navigate({ to: "/outsource" });
-                      } else {
-                        openOutsourceAuth(() => {
-                          navigate({ to: "/outsource" });
-                        });
-                      }
-                    }}
-                    className={`block w-full text-left py-2 px-3 text-sm font-medium rounded-lg hover:bg-accent hover:text-primary transition-colors ${
-                      location.pathname === "/outsource"
-                        ? "bg-primary/10 text-primary font-semibold"
-                        : "text-foreground"
-                    }`}
+                    disabled
+                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-muted-foreground/60 cursor-not-allowed select-none"
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+
+              if (item.to === "/rheumatology") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled
+                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-muted-foreground/60 cursor-not-allowed select-none"
                   >
                     {item.label}
                   </button>

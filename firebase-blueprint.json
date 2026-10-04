@@ -142,6 +142,30 @@
         "resultFile": { "type": "object" }
       },
       "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "rheumatology_appointments": {
+      "title": "Rheumatology Appointments",
+      "description": "Rheumatology clinic consultation and appointment requests separated by facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -169,6 +193,10 @@
       "outsource_appointments": {
         "entity": "outsource_appointments",
         "description": "Store outsource radiology and diagnostic report records from private hospitals"
+      },
+      "rheumatology_appointments": {
+        "entity": "rheumatology_appointments",
+        "description": "Store rheumatology clinic appointment requests"
       }
     }
   }

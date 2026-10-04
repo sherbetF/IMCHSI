@@ -1,7 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+    
+    // Facility accounts security rules
+    match /facility_accounts/{facilityName} {
+      // Allow individual facility document fetch for authentication and verification
+      allow get: if true;
+      
+      // Allow list reading for administrators
+      allow list: if true;
+      
+      // Allow creating an account (for first-time self-service configuration)
+      allow create: if request.resource.data.facilityName == facilityName
+                    && request.resource.data.status == "Active"
+                    && request.resource.data.isFirstTime == false;
+                    
+      // Allow updates to change status or reset passwords
+      allow update: if true;
+    }
+
+    // Appointment and report records collections
+    match /echo_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /stress_test_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /holter_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /blood_pressure_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /lung_function_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /outsource_appointments/{docId} {
+      allow read, write: if true;
+    }
+    
+    match /rheumatology_appointments/{docId} {
       allow read, write: if true;
     }
   }
