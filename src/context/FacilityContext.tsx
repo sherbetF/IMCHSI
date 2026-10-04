@@ -53,7 +53,6 @@ interface FacilityContextType {
 }
 
 const OUTSOURCE_AUTH_KEY = "hsi_outsource_auth_v1";
-export const ACTIVE_SESSION_TOKEN_KEY = "hsi_active_session_token";
 
 const FacilityContext = createContext<FacilityContextType | undefined>(undefined);
 
@@ -92,28 +91,6 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Set up Firebase Auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Verify active tab session token. If the tab was closed and reopened, sessionStorage will be empty
-        let activeToken = null;
-        try {
-          activeToken = sessionStorage.getItem(ACTIVE_SESSION_TOKEN_KEY);
-        } catch {
-          // ignore
-        }
-
-        if (!activeToken) {
-          // Tab/browser was closed or opened without an active login in this tab
-          try {
-            await signOut(auth);
-          } catch (err) {
-            console.warn("Sign out on missing session token error:", err);
-          }
-          setCurrentUser(null);
-          setUserRole(null);
-          setFacilityId(null);
-          setSelectedFacilityState(null);
-          return;
-        }
-
         setCurrentUser(user);
         try {
           const userDocRef = doc(db, "users", user.uid);
@@ -137,22 +114,17 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 });
               }
             } else {
-              sessionStorage.removeItem(ACTIVE_SESSION_TOKEN_KEY);
               await signOut(auth);
             }
           } else {
             // Document does not exist yet (e.g. during registration)
+            // Let the setup flow finish writing the profile
             console.log("User profile document not found yet.");
           }
         } catch (error) {
           console.error("Error loading user profile on auth change:", error);
         }
       } else {
-        try {
-          sessionStorage.removeItem(ACTIVE_SESSION_TOKEN_KEY);
-        } catch {
-          // ignore
-        }
         setCurrentUser(null);
         setUserRole(null);
         setFacilityId(null);
@@ -166,11 +138,6 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setSelectedFacility = async (facility: SelectedFacility | null) => {
     if (!facility) {
       try {
-        sessionStorage.removeItem(ACTIVE_SESSION_TOKEN_KEY);
-      } catch {
-        // ignore
-      }
-      try {
         await signOut(auth);
       } catch (err) {
         console.error("Sign out failed:", err);
@@ -178,13 +145,6 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSelectedFacilityState(null);
       setIsModalOpen(false);
     } else {
-      if (auth.currentUser) {
-        try {
-          sessionStorage.setItem(ACTIVE_SESSION_TOKEN_KEY, auth.currentUser.uid);
-        } catch {
-          // ignore
-        }
-      }
       setSelectedFacilityState(facility);
       setIsModalOpen(false);
       if (onFacilitySuccessCb) {
