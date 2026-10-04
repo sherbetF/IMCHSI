@@ -39,6 +39,8 @@ import {
   updateAppointment,
   AppointmentRecord,
 } from "@/services/firebaseAppointments";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export type TestResultFile = {
   fileName: string;
@@ -75,6 +77,18 @@ export function StressTestAppointment() {
   const [rejectingReq, setRejectingReq] = useState<StressTestRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectedBy, setRejectedBy] = useState("");
+
+  // Duplicate Request Handling State
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateJustification, setDuplicateJustification] = useState("");
+  const [duplicateError, setDuplicateError] = useState("");
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [justificationBlink, setJustificationBlink] = useState(false);
+  const [duplicateOriginalStatus, setDuplicateOriginalStatus] = useState("");
+  const [duplicateOriginalId, setDuplicateOriginalId] = useState("");
+  const [duplicateOriginalDate, setDuplicateOriginalDate] = useState("");
+  const [duplicateOriginalReason, setDuplicateOriginalReason] = useState("");
+
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -174,7 +188,7 @@ export function StressTestAppointment() {
   const [pendingReq, setPendingReq] = useState<StressTestRequest | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -224,7 +238,58 @@ export function StressTestAppointment() {
       createdAt: getLocalDateTimeString(),
     };
 
+    setIsCheckingDuplicate(true);
+    try {
+      const colRef = collection(db, "stress_test_appointments");
+      const q = query(colRef, where("mrn", "==", formData.mrn.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const docs = querySnapshot.docs.map((doc) => doc.data() as AppointmentRecord);
+        // Sort newest first
+        docs.sort(
+          (a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime(),
+        );
+        const latestPrev = docs[0];
+        setDuplicateOriginalStatus(latestPrev.status || "Pending Confirmation");
+        setDuplicateOriginalId(latestPrev.id || "");
+        setDuplicateOriginalDate(latestPrev.scheduledDate || "");
+        setDuplicateOriginalReason(latestPrev.rejectReason || "");
+
+        setPendingReq(newReq);
+        setDuplicateJustification("");
+        setDuplicateError("");
+        setShowDuplicateModal(true);
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking duplicate: ", err);
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+
     setPendingReq(newReq);
+    setShowNoticeModal(true);
+  };
+
+  const handleDuplicateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!duplicateJustification.trim()) {
+      setDuplicateError("Justification is required to proceed.");
+      setJustificationBlink(true);
+      setTimeout(() => {
+        setJustificationBlink(false);
+      }, 1500);
+      return;
+    }
+    if (!pendingReq) return;
+
+    const updatedReq = {
+      ...pendingReq,
+      duplicateJustification: duplicateJustification.trim(),
+    };
+    setPendingReq(updatedReq);
+    setShowDuplicateModal(false);
     setShowNoticeModal(true);
   };
 
@@ -870,6 +935,15 @@ export function StressTestAppointment() {
                         <span className="text-foreground">{r.clinicalIndication}</span>
                       </div>
 
+                      {r.duplicateJustification && (
+                        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-xs space-y-1 mt-2">
+                          <p className="font-bold text-amber-700 dark:text-amber-400">
+                            Duplicate Request Justification
+                          </p>
+                          <p className="text-foreground">{r.duplicateJustification}</p>
+                        </div>
+                      )}
+
                       {r.status === "Rejected" && (
                         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs space-y-1 mt-2">
                           <p className="font-bold text-destructive">Appointment Rejected</p>
@@ -1190,6 +1264,119 @@ export function StressTestAppointment() {
                 >
                   <Check className="h-4 w-4" />
                   Save & Publish Result to Cloud
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Justification Modal */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl space-y-5 overflow-hidden">
+            <div className="flex items-start justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-600 dark:text-red-400">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-heading">Duplicate Request Identified</h3>
+                  <p className="text-xs text-muted-foreground">Action required to proceed</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setPendingReq(null);
+                }}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted/20 hover:text-foreground transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-3 text-sm">
+              <p className="font-semibold text-red-800 dark:text-red-400 leading-relaxed">
+                A duplicate request has been identified. If you wish to proceed, please provide a
+                justification for this request.
+              </p>
+              {duplicateOriginalId && (
+                <div className="mt-2 pt-2 border-t border-red-500/10 text-xs text-red-700 dark:text-red-300 font-semibold flex flex-col gap-1">
+                  <div>
+                    <span className="opacity-80">Previous Request Status:</span>{" "}
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        duplicateOriginalStatus.toUpperCase() === "SCHEDULED"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/50"
+                          : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                      }`}
+                    >
+                      {duplicateOriginalStatus}
+                    </span>
+                  </div>
+                  <div>
+                    {duplicateOriginalStatus.toUpperCase() === "SCHEDULED" ? (
+                      <>
+                        <span className="opacity-80">Scheduled date:</span>{" "}
+                        <span className="font-bold text-red-800 dark:text-red-300">
+                          {duplicateOriginalDate || "Not specified"}
+                        </span>
+                      </>
+                    ) : duplicateOriginalStatus.toUpperCase() === "REJECTED" ? (
+                      <>
+                        <span className="opacity-80">Reason:</span>{" "}
+                        <span className="font-bold text-red-800 dark:text-red-300 italic">
+                          "{duplicateOriginalReason || "No reason provided"}"
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="opacity-80">Previous Request ID:</span>{" "}
+                        <span className="font-bold">{duplicateOriginalId}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleDuplicateSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Justification *
+                </label>
+                <textarea
+                  value={duplicateJustification}
+                  onChange={(e) => {
+                    setDuplicateJustification(e.target.value);
+                    if (e.target.value.trim()) setDuplicateError("");
+                  }}
+                  placeholder="Provide clinical justification (e.g. Repeated test due to clinical deterioration or urgent second opinion)"
+                  className="w-full min-h-[100px] rounded-xl border border-border bg-background p-3 text-sm font-semibold outline-none focus:border-primary placeholder:text-muted-foreground/60 resize-y"
+                />
+                {duplicateError && (
+                  <p className="text-xs text-destructive font-semibold">{duplicateError}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDuplicateModal(false);
+                    setPendingReq(null);
+                  }}
+                  className="rounded-xl border border-border px-4 py-2.5 text-xs sm:text-sm font-semibold hover:bg-muted/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-primary px-5 py-2.5 text-xs sm:text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  Submit
                 </button>
               </div>
             </form>

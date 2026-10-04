@@ -17,6 +17,7 @@ import {
   defaultHolterRequests,
   defaultBPRequests,
   defaultLungFunctionRequests,
+  defaultOutsourceRequests,
 } from "@/utils/appointmentStore";
 import { parseDateToTimestamp } from "@/utils/dateUtils";
 
@@ -114,6 +115,7 @@ const STRESS_COLLECTION = "stress_test_appointments";
 const HOLTER_COLLECTION = "holter_appointments";
 const BP_COLLECTION = "blood_pressure_appointments";
 const LFT_COLLECTION = "lung_function_appointments";
+const OUTSOURCE_COLLECTION = "outsource_appointments";
 
 // Initialize and seed default records to Firestore if empty
 let isSeeded = false;
@@ -155,6 +157,13 @@ export async function seedInitialDataIfEmpty() {
         await setDoc(doc(db, LFT_COLLECTION, item.id), item);
       }
     }
+
+    const outsourceSnap = await getDocs(collection(db, OUTSOURCE_COLLECTION));
+    if (outsourceSnap.empty) {
+      for (const item of defaultOutsourceRequests) {
+        await setDoc(doc(db, OUTSOURCE_COLLECTION, item.id), item);
+      }
+    }
   } catch (err) {
     console.warn("Firestore seed note:", err);
   }
@@ -165,7 +174,7 @@ export async function seedInitialDataIfEmpty() {
 // -------------------------------------------------------------
 
 export function subscribeToAppointments(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
   facilityName: string | null,
   isAdmin: boolean,
   callback: (data: AppointmentRecord[]) => void,
@@ -179,7 +188,9 @@ export function subscribeToAppointments(
           ? HOLTER_COLLECTION
           : collectionName === "bp"
             ? BP_COLLECTION
-            : LFT_COLLECTION;
+            : collectionName === "lft"
+              ? LFT_COLLECTION
+              : OUTSOURCE_COLLECTION;
 
   const colRef = collection(db, colName);
 
@@ -220,7 +231,7 @@ export function subscribeToAppointments(
 // -------------------------------------------------------------
 
 export async function createAppointment(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
   appointment: AppointmentRecord,
 ) {
   const colName =
@@ -232,13 +243,15 @@ export async function createAppointment(
           ? HOLTER_COLLECTION
           : collectionName === "bp"
             ? BP_COLLECTION
-            : LFT_COLLECTION;
+            : collectionName === "lft"
+              ? LFT_COLLECTION
+              : OUTSOURCE_COLLECTION;
 
   await setDoc(doc(db, colName, appointment.id), appointment);
 }
 
 export async function updateAppointment(
-  collectionName: "echo" | "stress" | "holter" | "bp" | "lft",
+  collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource",
   id: string,
   updates: Partial<AppointmentRecord>,
 ) {
@@ -251,7 +264,9 @@ export async function updateAppointment(
           ? HOLTER_COLLECTION
           : collectionName === "bp"
             ? BP_COLLECTION
-            : LFT_COLLECTION;
+            : collectionName === "lft"
+              ? LFT_COLLECTION
+              : OUTSOURCE_COLLECTION;
 
   await updateDoc(doc(db, colName, id), updates);
 }
@@ -285,6 +300,7 @@ export function subscribeToAllPendingNotifications(
   let holterItems: AppointmentRecord[] = [];
   let bpItems: AppointmentRecord[] = [];
   let lftItems: AppointmentRecord[] = [];
+  let outsourceItems: AppointmentRecord[] = [];
 
   const updateAll = () => {
     const isPending = (status: string) =>
@@ -377,6 +393,23 @@ export function subscribeToAllPendingNotifications(
       }
     });
 
+    outsourceItems.forEach((r) => {
+      if (isPending(r.status)) {
+        notifs.push({
+          id: r.id,
+          patientName: r.patientName,
+          mrn: r.mrn,
+          testType: "Outsource Radiology & Diagnostic Report",
+          procedureType: r.procedureType,
+          urgency: r.urgency,
+          facilityName: r.facilityName,
+          createdAt: r.createdAt,
+          status: r.status,
+          route: "/outsource",
+        });
+      }
+    });
+
     callback(notifs);
   };
 
@@ -405,11 +438,17 @@ export function subscribeToAllPendingNotifications(
     updateAll();
   });
 
+  const unsubOutsource = subscribeToAppointments("outsource", facilityName, isAdmin, (data) => {
+    outsourceItems = data;
+    updateAll();
+  });
+
   return () => {
     unsubEcho();
     unsubStress();
     unsubHolter();
     unsubBP();
     unsubLFT();
+    unsubOutsource();
   };
 }

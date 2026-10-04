@@ -81,6 +81,17 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   ) {
     titleText = "LUNG FUNCTION TEST / SPIROMETRY";
     lastDoneLabel = "Date Last Spirometry Done:";
+  } else if (
+    procType.includes("outsource") ||
+    procType.includes("mri") ||
+    procType.includes("ct") ||
+    procType.includes("usg") ||
+    procType.includes("coros") ||
+    procType.includes("eeg") ||
+    procType.includes("ncs")
+  ) {
+    titleText = "OUTSOURCE RADIOLOGY & DIAGNOSTIC REPORT";
+    lastDoneLabel = "Date Last Report Uploaded:";
   }
 
   return `
@@ -402,6 +413,19 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
 </body>
 </html>
   `;
+}
+
+/**
+ * Opens the Request / Diagnostic Report in a new tab for direct viewing (no auto-download / no auto-print).
+ */
+export function viewEchoReportInNewTab(req: AppointmentRecord): void {
+  const htmlContent = generateEchoFormHTML(req);
+  const pdfWindow = window.open("", "_blank");
+  if (pdfWindow) {
+    pdfWindow.document.write(htmlContent);
+    pdfWindow.document.close();
+    pdfWindow.focus();
+  }
 }
 
 /**

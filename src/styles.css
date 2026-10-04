@@ -150,6 +150,11 @@
 }
 
 @layer base {
+  html {
+    scrollbar-gutter: stable;
+    overflow-y: scroll;
+  }
+
   * {
     border-color: var(--color-border);
   }

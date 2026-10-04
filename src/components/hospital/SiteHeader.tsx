@@ -29,6 +29,7 @@ import {
 const nav = [
   { label: "Home", to: "/" as const },
   { label: "NICL Procedure", to: "/" as const, isAppointmentScroll: true },
+  { label: "Outsource", to: "/outsource" as const },
 ];
 
 function useClock() {
@@ -44,7 +45,14 @@ function useClock() {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export function SiteHeader() {
-  const { selectedFacility, setSelectedFacility, isAdmin, openModal } = useFacility();
+  const {
+    selectedFacility,
+    setSelectedFacility,
+    isAdmin,
+    openModal,
+    isOutsourceAuthenticated,
+    openOutsourceAuth,
+  } = useFacility();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -206,6 +214,31 @@ export function SiteHeader() {
                     type="button"
                     onClick={handleAppointmentClick}
                     className="text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer"
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+
+              if (item.to === "/outsource") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      if (isOutsourceAuthenticated) {
+                        navigate({ to: "/outsource" });
+                      } else {
+                        openOutsourceAuth(() => {
+                          navigate({ to: "/outsource" });
+                        });
+                      }
+                    }}
+                    className={`text-sm font-medium transition-colors cursor-pointer ${
+                      location.pathname === "/outsource"
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    }`}
                   >
                     {item.label}
                   </button>
@@ -393,6 +426,32 @@ export function SiteHeader() {
                       handleAppointmentClick(e);
                     }}
                     className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-foreground hover:bg-accent hover:text-primary transition-colors"
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+
+              if (item.to === "/outsource") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      if (isOutsourceAuthenticated) {
+                        navigate({ to: "/outsource" });
+                      } else {
+                        openOutsourceAuth(() => {
+                          navigate({ to: "/outsource" });
+                        });
+                      }
+                    }}
+                    className={`block w-full text-left py-2 px-3 text-sm font-medium rounded-lg hover:bg-accent hover:text-primary transition-colors ${
+                      location.pathname === "/outsource"
+                        ? "bg-primary/10 text-primary font-semibold"
+                        : "text-foreground"
+                    }`}
                   >
                     {item.label}
                   </button>

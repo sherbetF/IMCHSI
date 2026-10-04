@@ -17,9 +17,17 @@ interface FacilityContextType {
   modalStep: ModalStep;
   setModalStep: (step: ModalStep) => void;
   openModal: (step?: ModalStep) => void;
+  // Outsource Access Protection
+  isOutsourceAuthenticated: boolean;
+  isOutsourceAuthOpen: boolean;
+  openOutsourceAuth: (onSuccessCallback?: () => void) => void;
+  closeOutsourceAuth: () => void;
+  verifyOutsourcePassword: (password: string) => boolean;
+  lockOutsource: () => void;
 }
 
 const STORAGE_KEY = "hsi_selected_facility_v1";
+const OUTSOURCE_AUTH_KEY = "hsi_outsource_auth_v1";
 
 const FacilityContext = createContext<FacilityContextType | undefined>(undefined);
 
@@ -28,6 +36,9 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isModalOpen, setIsModalOpen] = useState<boolean>(true);
   const [modalStep, setModalStep] = useState<ModalStep>("greeting");
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isOutsourceAuthenticated, setIsOutsourceAuthenticated] = useState<boolean>(false);
+  const [isOutsourceAuthOpen, setIsOutsourceAuthOpen] = useState<boolean>(false);
+  const [onOutsourceSuccessCb, setOnOutsourceSuccessCb] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -40,6 +51,16 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {
       // ignore
     }
+
+    try {
+      const outsourceAuthSaved = sessionStorage.getItem(OUTSOURCE_AUTH_KEY);
+      if (outsourceAuthSaved === "true") {
+        setIsOutsourceAuthenticated(true);
+      }
+    } catch {
+      // ignore
+    }
+
     // Always start with the Greeting popup first when opening the webpage
     setIsModalOpen(true);
     setModalStep("greeting");
@@ -66,6 +87,47 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsModalOpen(true);
   };
 
+  const openOutsourceAuth = (onSuccessCallback?: () => void) => {
+    if (onSuccessCallback) {
+      setOnOutsourceSuccessCb(() => onSuccessCallback);
+    } else {
+      setOnOutsourceSuccessCb(null);
+    }
+    setIsOutsourceAuthOpen(true);
+  };
+
+  const closeOutsourceAuth = () => {
+    setIsOutsourceAuthOpen(false);
+    setOnOutsourceSuccessCb(null);
+  };
+
+  const verifyOutsourcePassword = (password: string): boolean => {
+    if (password.trim() === "kipling") {
+      setIsOutsourceAuthenticated(true);
+      try {
+        sessionStorage.setItem(OUTSOURCE_AUTH_KEY, "true");
+      } catch {
+        // ignore
+      }
+      setIsOutsourceAuthOpen(false);
+      if (onOutsourceSuccessCb) {
+        onOutsourceSuccessCb();
+        setOnOutsourceSuccessCb(null);
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const lockOutsource = () => {
+    setIsOutsourceAuthenticated(false);
+    try {
+      sessionStorage.removeItem(OUTSOURCE_AUTH_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
   const isAdmin =
     selectedFacility?.category === "Hospital Sultan Ismail Admin" ||
     selectedFacility?.name.toLowerCase().includes("admin") ||
@@ -82,6 +144,12 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         modalStep,
         setModalStep,
         openModal,
+        isOutsourceAuthenticated,
+        isOutsourceAuthOpen,
+        openOutsourceAuth,
+        closeOutsourceAuth,
+        verifyOutsourcePassword,
+        lockOutsource,
       }}
     >
       {children}
@@ -98,6 +166,12 @@ const defaultFacilityContext: FacilityContextType = {
   modalStep: "greeting",
   setModalStep: () => {},
   openModal: () => {},
+  isOutsourceAuthenticated: false,
+  isOutsourceAuthOpen: false,
+  openOutsourceAuth: () => {},
+  closeOutsourceAuth: () => {},
+  verifyOutsourcePassword: () => false,
+  lockOutsource: () => {},
 };
 
 export const useFacility = () => {

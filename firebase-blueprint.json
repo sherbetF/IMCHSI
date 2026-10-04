@@ -118,6 +118,30 @@
         "resultFile": { "type": "object" }
       },
       "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "outsource_appointments": {
+      "title": "Outsource Radiology & Diagnostic Reports",
+      "description": "Outsourced diagnostic reports (MRI, CT Scan, USG, COROS, EEG, NCS, etc.) from external private hospitals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "facilityCategory": { "type": "string" },
+        "patientName": { "type": "string" },
+        "mrn": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "procedureType": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["Routine", "Urgent"] },
+        "referringDoctor": { "type": "string" },
+        "clinicalIndication": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "resultFile": { "type": "object" }
+      },
+      "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -141,6 +165,10 @@
       "lung_function_appointments": {
         "entity": "lung_function_appointments",
         "description": "Store lung function test and spirometry appointments"
+      },
+      "outsource_appointments": {
+        "entity": "outsource_appointments",
+        "description": "Store outsource radiology and diagnostic report records from private hospitals"
       }
     }
   }

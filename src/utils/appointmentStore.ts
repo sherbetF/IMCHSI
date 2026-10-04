@@ -7,13 +7,14 @@ export interface UnifiedRequestNotification {
     | "Exercise Stress Test"
     | "24H Holter"
     | "24H Blood Pressure"
-    | "Lung Function / Spirometry";
+    | "Lung Function / Spirometry"
+    | "Outsource Radiology & Diagnostic Report";
   procedureType: string;
   urgency: "Routine" | "Urgent";
   facilityName: string;
   createdAt: string;
   status: string;
-  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function";
+  route: "/echo" | "/stress-test" | "/holter" | "/blood-pressure" | "/lung-function" | "/outsource";
 }
 
 const ECHO_KEY = "hsi_echo_requests_v2";
@@ -21,6 +22,7 @@ const STRESS_KEY = "hsi_stresstest_requests_v2";
 const HOLTER_KEY = "hsi_holter_requests_v2";
 const BP_KEY = "hsi_bloodpressure_requests_v2";
 const LFT_KEY = "hsi_lungfunction_requests_v2";
+const OUTSOURCE_KEY = "hsi_outsource_requests_v1";
 const READ_NOTIFS_KEY = "hsi_read_notifications_v1";
 
 export const defaultEchoRequests = [
@@ -211,6 +213,57 @@ export const defaultLungFunctionRequests = [
     diagnosis: "Severe Persistent Bronchial Asthma / Reversibility Assessment",
     status: "Pending Confirmation",
     createdAt: "16/08/2026 11:45",
+  },
+];
+
+export const defaultOutsourceRequests = [
+  {
+    id: "OUT-2026-5001",
+    facilityName: "KPJ Johor Specialist Hospital",
+    facilityCategory: "Private Hospital",
+    patientName: "Muhammad Amirul bin Zulkifli",
+    mrn: "ID-992014",
+    contactNumber: "+60 11-2345 8890",
+    email: "amirul.z@example.com",
+    procedureType: "MRI Brain & Spine (Outsource)",
+    urgency: "Routine",
+    referringDoctor: "Dr. Hassan Basri (Neurology - KPJ)",
+    clinicalIndication: "Chronic intractable migraine with focal numbness",
+    diagnosis: "Intracranial Space Occupying Lesion Rule Out",
+    status: "Confirmed",
+    createdAt: "18/08/2026 09:15",
+  },
+  {
+    id: "OUT-2026-5002",
+    facilityName: "Regency Specialist Hospital",
+    facilityCategory: "Private Hospital",
+    patientName: "Wong Siew Ling",
+    mrn: "ID-883102",
+    contactNumber: "+60 17-662 1099",
+    email: "sl.wong@example.com",
+    procedureType: "CT Thorax & Abdomen (Outsource)",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Karen Teo (Oncology - Regency)",
+    clinicalIndication: "Staging scan for persistent hilar lymphadenopathy",
+    diagnosis: "Lymphoma Staging / Metastatic Workup",
+    status: "Pending Confirmation",
+    createdAt: "19/08/2026 10:40",
+  },
+  {
+    id: "OUT-2026-5003",
+    facilityName: "Gleneagles Medini Hospital",
+    facilityCategory: "Private Hospital",
+    patientName: "Subramaniam A/L Krishnan",
+    mrn: "ID-774012",
+    contactNumber: "+60 12-901 3344",
+    email: "subra.k@example.com",
+    procedureType: "Coronary Angiogram (COROS Outsource)",
+    urgency: "Urgent",
+    referringDoctor: "Dr. Alex Tan (Cardiology - Gleneagles)",
+    clinicalIndication: "High risk treadmill stress test with ischemic ST depression",
+    diagnosis: "Severe Triple Vessel Disease (TVD)",
+    status: "Under Review",
+    createdAt: "20/08/2026 14:00",
   },
 ];
 
