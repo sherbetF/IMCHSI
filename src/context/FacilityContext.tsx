@@ -6,7 +6,7 @@ export interface SelectedFacility {
   name: string;
 }
 
-export type ModalStep = "greeting" | "facility";
+export type ModalStep = "greeting" | "facility" | "admin";
 
 interface FacilityContextType {
   selectedFacility: SelectedFacility | null;
@@ -16,7 +16,8 @@ interface FacilityContextType {
   setIsModalOpen: (open: boolean) => void;
   modalStep: ModalStep;
   setModalStep: (step: ModalStep) => void;
-  openModal: (step?: ModalStep) => void;
+  openModal: (step?: ModalStep, onFacilitySelected?: () => void) => void;
+  closeModal: () => void;
   // Outsource Access Protection
   isOutsourceAuthenticated: boolean;
   isOutsourceAuthOpen: boolean;
@@ -33,9 +34,10 @@ const FacilityContext = createContext<FacilityContextType | undefined>(undefined
 
 export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFacility, setSelectedFacilityState] = useState<SelectedFacility | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(true);
-  const [modalStep, setModalStep] = useState<ModalStep>("greeting");
-  const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [modalStep, setModalStep] = useState<ModalStep>("facility");
+  const [, setIsMounted] = useState<boolean>(false);
+  const [onFacilitySuccessCb, setOnFacilitySuccessCb] = useState<(() => void) | null>(null);
   const [isOutsourceAuthenticated, setIsOutsourceAuthenticated] = useState<boolean>(false);
   const [isOutsourceAuthOpen, setIsOutsourceAuthOpen] = useState<boolean>(false);
   const [onOutsourceSuccessCb, setOnOutsourceSuccessCb] = useState<(() => void) | null>(null);
@@ -60,10 +62,6 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {
       // ignore
     }
-
-    // Always start with the Greeting popup first when opening the webpage
-    setIsModalOpen(true);
-    setModalStep("greeting");
   }, []);
 
   const setSelectedFacility = (facility: SelectedFacility | null) => {
@@ -75,6 +73,10 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // ignore
       }
       setIsModalOpen(false);
+      if (onFacilitySuccessCb) {
+        onFacilitySuccessCb();
+        setOnFacilitySuccessCb(null);
+      }
     } else {
       localStorage.removeItem(STORAGE_KEY);
       setModalStep("facility");
@@ -82,9 +84,19 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const openModal = (step: ModalStep = "facility") => {
+  const openModal = (step: ModalStep = "facility", onFacilitySelected?: () => void) => {
     setModalStep(step);
+    if (onFacilitySelected) {
+      setOnFacilitySuccessCb(() => onFacilitySelected);
+    } else {
+      setOnFacilitySuccessCb(null);
+    }
     setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setOnFacilitySuccessCb(null);
   };
 
   const openOutsourceAuth = (onSuccessCallback?: () => void) => {
@@ -144,6 +156,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         modalStep,
         setModalStep,
         openModal,
+        closeModal,
         isOutsourceAuthenticated,
         isOutsourceAuthOpen,
         openOutsourceAuth,
@@ -163,9 +176,10 @@ const defaultFacilityContext: FacilityContextType = {
   isAdmin: false,
   isModalOpen: false,
   setIsModalOpen: () => {},
-  modalStep: "greeting",
+  modalStep: "facility",
   setModalStep: () => {},
   openModal: () => {},
+  closeModal: () => {},
   isOutsourceAuthenticated: false,
   isOutsourceAuthOpen: false,
   openOutsourceAuth: () => {},

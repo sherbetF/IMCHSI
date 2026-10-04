@@ -133,6 +133,13 @@ export function SiteHeader() {
     ? `${now.toLocaleDateString("en-GB", { weekday: "long" })}, ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`
     : "";
 
+  const filteredNav = nav.filter((item) => {
+    if (item.to === "/outsource" && selectedFacility && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <header>
       <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 py-0.5 text-center text-[11px] sm:text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5 leading-tight">
@@ -146,35 +153,25 @@ export function SiteHeader() {
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2 px-5 py-2">
           <div className="flex flex-wrap items-center gap-3">
             <p className="eyebrow text-muted-foreground">{date}</p>
-            <span className="hidden text-border sm:inline">|</span>
-            {selectedFacility ? (
-              <button
-                type="button"
-                onClick={() => openModal("facility")}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold hover:opacity-80 transition-opacity ${
-                  isAdmin
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    : "border-primary/30 bg-primary/10 text-primary"
-                }`}
-                title="Click to change facility"
-              >
-                {isAdmin ? (
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                ) : (
+            {selectedFacility && (
+              <>
+                <span className="hidden text-border sm:inline">|</span>
+                <button
+                  type="button"
+                  onClick={() => openModal("facility")}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold hover:opacity-80 transition-opacity ${
+                    isAdmin
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      : "border-primary/30 bg-primary/10 text-primary"
+                  }`}
+                  title="Click to change facility"
+                >
                   <Building2 className="h-3.5 w-3.5" />
-                )}
-                <span>
-                  {selectedFacility.name} {isAdmin ? "" : `(${selectedFacility.category})`}
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={() => openModal("greeting")}
-                className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                <span>Select Facility</span>
-              </button>
+                  <span>
+                    {selectedFacility.name} {isAdmin ? "" : `(${selectedFacility.category})`}
+                  </span>
+                </button>
+              </>
             )}
           </div>
 
@@ -208,7 +205,7 @@ export function SiteHeader() {
           </Link>
 
           <nav className="hidden items-center gap-5 xl:gap-6 lg:flex">
-            {nav.map((item) => {
+            {filteredNav.map((item) => {
               if (item.isAppointmentScroll) {
                 return (
                   <button
@@ -263,142 +260,169 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* Notification Bell Dropdown Button - accessible for facility & admin */}
-            <div className="relative" ref={notifRef}>
+            {location.pathname === "/" && !selectedFacility ? (
+              /* Admin Login Button on Main Landing Page upon opening website */
               <button
-                onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors shadow-sm ${
-                  isAdmin
-                    ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                    : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                }`}
-                title="Appointment Requests & Notifications"
-                aria-label="Notifications"
+                type="button"
+                onClick={() => openModal("admin")}
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary transition-all shadow-sm"
+                title="Hospital Admin Login"
+                aria-label="Admin Login"
               >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-extrabold text-white shadow-sm animate-pulse">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
+                <ShieldCheck className="h-4 w-4" />
               </button>
+            ) : location.pathname === "/" && isAdmin ? (
+              /* Hospital Admin Logged In Badge */
+              <button
+                type="button"
+                onClick={() => openModal("admin")}
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30 ring-2 ring-amber-500/30 transition-all shadow-sm"
+                title="Hospital Admin (Logged In) • Click to manage"
+                aria-label="Admin Status"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background animate-pulse" />
+              </button>
+            ) : (
+              /* Notification Bell Dropdown Button once customer logs in to their facility or visits procedure pages */
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => setIsNotifOpen(!isNotifOpen)}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors shadow-sm ${
+                    isAdmin
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                      : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                  }`}
+                  title="Appointment Requests & Notifications"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-extrabold text-white shadow-sm animate-pulse">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </button>
 
-              {isNotifOpen && (
-                <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 rounded-2xl border border-border bg-surface p-4 shadow-2xl animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between border-b border-border pb-3">
-                    <div className="flex items-center gap-2">
-                      <Bell className={`h-4 w-4 ${isAdmin ? "text-amber-500" : "text-primary"}`} />
-                      <h4 className="text-sm font-bold text-heading">Notifications</h4>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          isAdmin
-                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                            : "bg-primary/20 text-primary"
-                        }`}
-                      >
-                        {unreadCount} unread
-                      </span>
+                {isNotifOpen && (
+                  <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 rounded-2xl border border-border bg-surface p-4 shadow-2xl animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between border-b border-border pb-3">
+                      <div className="flex items-center gap-2">
+                        <Bell
+                          className={`h-4 w-4 ${isAdmin ? "text-amber-500" : "text-primary"}`}
+                        />
+                        <h4 className="text-sm font-bold text-heading">Notifications</h4>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            isAdmin
+                              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                              : "bg-primary/20 text-primary"
+                          }`}
+                        >
+                          {unreadCount} unread
+                        </span>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <CheckCheck className="h-3.5 w-3.5" /> Mark read
+                        </button>
+                      )}
                     </div>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
-                      >
-                        <CheckCheck className="h-3.5 w-3.5" /> Mark read
-                      </button>
-                    )}
-                  </div>
 
-                  <div className="mt-3 max-h-80 overflow-y-auto space-y-2.5 pr-1">
-                    {notifications.length === 0 ? (
-                      <p className="py-6 text-center text-xs text-muted-foreground">
-                        {isAdmin
-                          ? "No pending appointment requests."
-                          : "No appointment schedule updates or notifications."}
-                      </p>
-                    ) : (
-                      notifications.map((n) => {
-                        const isRead = readIds.includes(n.id);
-                        const isScheduled = n.notificationType === "scheduled";
-                        const isRejected = n.notificationType === "rejected";
+                    <div className="mt-3 max-h-80 overflow-y-auto space-y-2.5 pr-1">
+                      {notifications.length === 0 ? (
+                        <p className="py-6 text-center text-xs text-muted-foreground">
+                          {isAdmin
+                            ? "No pending appointment requests."
+                            : "No appointment schedule updates or notifications."}
+                        </p>
+                      ) : (
+                        notifications.map((n) => {
+                          const isRead = readIds.includes(n.id);
+                          const isScheduled = n.notificationType === "scheduled";
+                          const isRejected = n.notificationType === "rejected";
 
-                        return (
-                          <div
-                            key={n.id}
-                            className={`rounded-xl border p-3 text-xs transition-all ${
-                              isScheduled
-                                ? isRead
-                                  ? "border-emerald-500/30 bg-emerald-500/5 text-muted-foreground"
-                                  : "border-emerald-500/50 bg-emerald-500/15 text-foreground shadow-xs"
-                                : isRejected
+                          return (
+                            <div
+                              key={n.id}
+                              className={`rounded-xl border p-3 text-xs transition-all ${
+                                isScheduled
                                   ? isRead
-                                    ? "border-destructive/20 bg-destructive/5 text-muted-foreground"
-                                    : "border-destructive/40 bg-destructive/10 text-foreground"
-                                  : isRead
-                                    ? "border-border/50 bg-background/50 text-muted-foreground"
-                                    : isAdmin
-                                      ? "border-amber-500/40 bg-amber-500/10 text-foreground"
-                                      : "border-primary/40 bg-primary/5 text-foreground"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-xs font-bold text-primary">
-                                {n.rawId || n.id}
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                                    n.urgency === "Urgent"
-                                      ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                                      : "bg-surface text-muted-foreground border border-border/40"
-                                  }`}
-                                >
-                                  {n.urgency}
+                                    ? "border-emerald-500/30 bg-emerald-500/5 text-muted-foreground"
+                                    : "border-emerald-500/50 bg-emerald-500/15 text-foreground shadow-xs"
+                                  : isRejected
+                                    ? isRead
+                                      ? "border-destructive/20 bg-destructive/5 text-muted-foreground"
+                                      : "border-destructive/40 bg-destructive/10 text-foreground"
+                                    : isRead
+                                      ? "border-border/50 bg-background/50 text-muted-foreground"
+                                      : isAdmin
+                                        ? "border-amber-500/40 bg-amber-500/10 text-foreground"
+                                        : "border-primary/40 bg-primary/5 text-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono text-xs font-bold text-primary">
+                                  {n.rawId || n.id}
                                 </span>
-                                <span
-                                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                    isScheduled
-                                      ? "bg-emerald-600 text-white"
-                                      : isRejected
-                                        ? "bg-destructive text-white"
-                                        : "bg-primary/15 text-primary"
-                                  }`}
-                                >
-                                  {n.status}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                                      n.urgency === "Urgent"
+                                        ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                                        : "bg-surface text-muted-foreground border border-border/40"
+                                    }`}
+                                  >
+                                    {n.urgency}
+                                  </span>
+                                  <span
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                      isScheduled
+                                        ? "bg-emerald-600 text-white"
+                                        : isRejected
+                                          ? "bg-destructive text-white"
+                                          : "bg-primary/15 text-primary"
+                                    }`}
+                                  >
+                                    {n.status}
+                                  </span>
+                                </div>
                               </div>
+
+                              <div className="mt-1">
+                                <p className="font-bold text-heading text-xs">{n.patientName}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {n.mrn} • {n.testType}
+                                </p>
+                              </div>
+
+                              {/* Scheduled appointment date highlight box */}
+                              {isScheduled && n.scheduledDate && (
+                                <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 font-mono">
+                                  <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Appointment: {n.scheduledDate}</span>
+                                </div>
+                              )}
+
+                              {/* Rejection reason box */}
+                              {isRejected && n.rejectReason && (
+                                <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-[11px] text-destructive">
+                                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                                  <span>Reason: {n.rejectReason}</span>
+                                </div>
+                              )}
                             </div>
-
-                            <div className="mt-1">
-                              <p className="font-bold text-heading text-xs">{n.patientName}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {n.mrn} • {n.testType}
-                              </p>
-                            </div>
-
-                            {/* Scheduled appointment date highlight box */}
-                            {isScheduled && n.scheduledDate && (
-                              <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 font-mono">
-                                <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                                <span>Appointment: {n.scheduledDate}</span>
-                              </div>
-                            )}
-
-                            {/* Rejection reason box */}
-                            {isRejected && n.rejectReason && (
-                              <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-[11px] text-destructive">
-                                <XCircle className="h-3.5 w-3.5 shrink-0" />
-                                <span>Reason: {n.rejectReason}</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
@@ -438,7 +462,7 @@ export function SiteHeader() {
         {/* Mobile Navigation Dropdown */}
         {isMobileMenuOpen && (
           <div className="border-t border-border bg-surface px-5 py-3 lg:hidden space-y-1 animate-in fade-in">
-            {nav.map((item) => {
+            {filteredNav.map((item) => {
               if (item.isAppointmentScroll) {
                 return (
                   <button

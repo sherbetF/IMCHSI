@@ -20,7 +20,7 @@ export function FacilitySelectModal() {
     selectedFacility,
     setSelectedFacility,
     isModalOpen,
-    setIsModalOpen,
+    closeModal,
     modalStep,
     setModalStep,
   } = useFacility();
@@ -46,6 +46,12 @@ export function FacilitySelectModal() {
 
   // Sync state when modal opens or selectedFacility changes
   useEffect(() => {
+    if (modalStep === "admin") {
+      setIsAdminAuthOpen(true);
+    } else {
+      setIsAdminAuthOpen(false);
+    }
+
     if (selectedFacility && selectedFacility.category !== "Hospital Sultan Ismail Admin") {
       setSelectedCategory(selectedFacility.category as FacilityCategory);
       setSelectedName(selectedFacility.name);
@@ -56,7 +62,7 @@ export function FacilitySelectModal() {
         setSelectedName(group.items[0]);
       }
     }
-  }, [selectedFacility]);
+  }, [selectedFacility, modalStep]);
 
   const currentCategoryData = FACILITIES_DATA.find((g) => g.category === selectedCategory);
   const availableFacilities = currentCategoryData ? currentCategoryData.items : [];
@@ -268,15 +274,11 @@ export function FacilitySelectModal() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsAdminAuthOpen(true);
-                    setAuthError("");
-                    setAdminPassword("");
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary transition-all hover:bg-primary/20 shrink-0"
-                  title="Hospital Admin Login"
+                  onClick={closeModal}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-all hover:bg-accent hover:text-foreground shrink-0"
+                  title="Close"
                 >
-                  <ShieldCheck className="h-4 w-4" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -370,11 +372,11 @@ export function FacilitySelectModal() {
             <div className="border-t border-border bg-surface p-4 px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => setModalStep("greeting")}
+                onClick={closeModal}
                 className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground order-2 sm:order-1"
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Back</span>
+                <X className="h-3.5 w-3.5" />
+                <span>Cancel</span>
               </button>
 
               <div className="flex items-center gap-3 w-full sm:w-auto justify-end order-1 sm:order-2">
