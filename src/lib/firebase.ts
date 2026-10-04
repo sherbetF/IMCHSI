@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeFirestore, getFirestore, doc, getDocFromServer } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserSessionPersistence } from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 const app = !getApps().length
@@ -35,6 +35,11 @@ function getOrCreateFirestore() {
 
 export const db = getOrCreateFirestore();
 export const auth = getAuth(app);
+
+// Enforce browserSessionPersistence so auth automatically logs out when the tab or browser is closed
+setPersistence(auth, browserSessionPersistence).catch((err) => {
+  console.warn("Failed to set browserSessionPersistence:", err);
+});
 
 // Hardened Firestore error handler
 export enum OperationType {
