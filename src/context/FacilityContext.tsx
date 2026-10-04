@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { FacilityCategory } from "@/data/facilities";
 import { auth, db } from "@/lib/firebase";
-import {
-  onAuthStateChanged,
-  signOut,
-  setPersistence,
-  browserSessionPersistence,
-  User,
-} from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export interface SelectedFacility {
@@ -73,11 +67,6 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     setIsMounted(true);
-
-    // Enforce session persistence so closing website/tab automatically logs out facility users and admins
-    setPersistence(auth, browserSessionPersistence).catch((err) => {
-      console.warn("Could not set browserSessionPersistence:", err);
-    });
 
     try {
       const outsourceAuthSaved = sessionStorage.getItem(OUTSOURCE_AUTH_KEY);
