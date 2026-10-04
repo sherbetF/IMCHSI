@@ -18,7 +18,12 @@ import jataNegaraLogo from "@/assets/jata-negara.svg";
 import { FACILITIES_DATA, FacilityCategory } from "@/data/facilities";
 import { useFacility, getFacilityId, getFacilityAuthEmail } from "@/context/FacilityContext";
 import { db, auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  setPersistence,
+  browserSessionPersistence,
+} from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -220,10 +225,12 @@ export function FacilitySelectModal() {
           const defaultPass = `hospital_hsi_${facId}`;
           let userCredential;
           try {
+            await setPersistence(auth, browserSessionPersistence);
             userCredential = await signInWithEmailAndPassword(auth, email, defaultPass);
           } catch (authErr: unknown) {
             const err = authErr as { code?: string };
             if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
+              await setPersistence(auth, browserSessionPersistence);
               userCredential = await createUserWithEmailAndPassword(auth, email, defaultPass);
             } else {
               throw authErr;
@@ -295,12 +302,14 @@ export function FacilitySelectModal() {
 
       let userCredential;
       try {
+        await setPersistence(auth, browserSessionPersistence);
         userCredential = await signInWithEmailAndPassword(auth, email, facilityPassword);
       } catch (authErr: unknown) {
         const err = authErr as { code?: string };
         // If account does not exist in Firebase Auth yet, provision it on first use
         if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
           try {
+            await setPersistence(auth, browserSessionPersistence);
             userCredential = await createUserWithEmailAndPassword(auth, email, facilityPassword);
           } catch (createErr: unknown) {
             const cErr = createErr as { code?: string };
@@ -451,6 +460,7 @@ export function FacilitySelectModal() {
     try {
       let userCredential;
       try {
+        await setPersistence(auth, browserSessionPersistence);
         userCredential = await signInWithEmailAndPassword(auth, "admin@auth.local", adminPassword);
       } catch (authErr: unknown) {
         const err = authErr as { code?: string };
@@ -468,6 +478,7 @@ export function FacilitySelectModal() {
             return;
           }
           try {
+            await setPersistence(auth, browserSessionPersistence);
             userCredential = await createUserWithEmailAndPassword(
               auth,
               "admin@auth.local",

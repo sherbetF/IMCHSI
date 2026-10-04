@@ -13,32 +13,32 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() 
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
-    }
-
-    function isFacilityUser() {
-      return isSignedIn() 
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility"
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
-    }
-
-    // User profiles (secure and restricted)
-    // Non-recursive rule layout to prevent evaluation permission errors on first login setup
-    match /users/{uid} {
-      allow get: if isSignedIn() && (
-        request.auth.uid == uid || (
+      return isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email == "admin@auth.local") || (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
         )
       );
-      allow list: if isAdmin();
-      allow create: if isSignedIn() && (request.auth.uid == uid);
-      allow update: if isAdmin();
+    }
+
+    function isFacilityUser() {
+      return isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.matches("facility_.*@auth\\.local")) || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility" &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
+        )
+      );
+    }
+
+    // User profiles (secure and restricted)
+    match /users/{uid} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn() && (
+        request.auth.uid == uid || isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
