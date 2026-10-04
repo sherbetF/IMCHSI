@@ -1,11 +1,53 @@
 {
   "entities": {
+    "users": {
+      "title": "User Profiles",
+      "description": "Secure user profile mapping Firebase Auth UID to app role and facility details",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["admin", "facility"] },
+        "facilityId": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "category": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["role", "active"]
+    },
+    "facilities": {
+      "title": "Facilities Registry",
+      "description": "Metadata and first-time login config for primary care health clinics",
+      "type": "object",
+      "properties": {
+        "facilityId": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Disabled"] },
+        "isFirstTime": { "type": "boolean" },
+        "resetCount": { "type": "number" },
+        "uid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["facilityId", "facilityName", "status", "isFirstTime"]
+    },
+    "admin_config": {
+      "title": "Admin Configuration",
+      "description": "Global administrator configuration variables",
+      "type": "object",
+      "properties": {
+        "initialized": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["initialized"]
+    },
     "echo_appointments": {
       "title": "Echo Appointments",
       "description": "Echocardiogram appointment requests separated by facility",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -29,6 +71,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -53,6 +96,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -77,6 +121,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -101,6 +146,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -125,6 +171,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -149,6 +196,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "facilityCategory": { "type": "string" },
         "patientName": { "type": "string" },
@@ -169,35 +217,49 @@
     }
   },
   "firestore": {
-    "collections": {
-      "echo_appointments": {
-        "entity": "echo_appointments",
-        "description": "Store echo appointments"
-      },
-      "stress_test_appointments": {
-        "entity": "stress_test_appointments",
-        "description": "Store stress test appointments"
-      },
-      "holter_appointments": {
-        "entity": "holter_appointments",
-        "description": "Store holter appointments"
-      },
-      "blood_pressure_appointments": {
-        "entity": "blood_pressure_appointments",
-        "description": "Store 24 hours blood pressure monitoring appointments"
-      },
-      "lung_function_appointments": {
-        "entity": "lung_function_appointments",
-        "description": "Store lung function test and spirometry appointments"
-      },
-      "outsource_appointments": {
-        "entity": "outsource_appointments",
-        "description": "Store outsource radiology and diagnostic report records from private hospitals"
-      },
-      "rheumatology_appointments": {
-        "entity": "rheumatology_appointments",
-        "description": "Store rheumatology clinic appointment requests"
-      }
+    "/users/{uid}": {
+      "schema": "users",
+      "description": "User profiles with roles and facility associations"
+    },
+    "/facilities/{facilityId}": {
+      "schema": "facilities",
+      "description": "Public and administrative registry of medical facilities and setup states"
+    },
+    "/admin_config/{docId}": {
+      "schema": "admin_config",
+      "description": "Global administrative configurations"
+    },
+    "/echo_appointments/{docId}": {
+      "schema": "echo_appointments",
+      "description": "Echocardiogram appointment requests"
+    },
+    "/stress_test_appointments/{docId}": {
+      "schema": "stress_test_appointments",
+      "description": "Exercise stress test appointment requests"
+    },
+    "/holter_appointments/{docId}": {
+      "schema": "holter_appointments",
+      "description": "24H Holter monitoring appointment requests"
+    },
+    "/blood_pressure_appointments/{docId}": {
+      "schema": "blood_pressure_appointments",
+      "description": "24H Blood pressure monitoring appointment requests"
+    },
+    "/lung_function_appointments/{docId}": {
+      "schema": "lung_function_appointments",
+      "description": "Lung function and spirometry appointment requests"
+    },
+    "/outsource_appointments/{docId}": {
+      "schema": "outsource_appointments",
+      "description": "Outsource radiology and diagnostic report records"
+    },
+    "/rheumatology_appointments/{docId}": {
+      "schema": "rheumatology_appointments",
+      "description": "Rheumatology clinic consultation and appointment requests"
+    },
+    "/outsource_reports/{docId}": {
+      "schema": "outsource_appointments",
+      "description": "Additional diagnostic report details for outsourced entries"
     }
   }
 }

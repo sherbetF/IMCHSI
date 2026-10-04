@@ -10,7 +10,17 @@ import {
   orderBy,
   Unsubscribe,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { getAuth } from "firebase/auth";
+
+// Safe helper to get active auth instance
+function getFirebaseAuth() {
+  try {
+    return auth || getAuth();
+  } catch {
+    return null;
+  }
+}
 import {
   defaultEchoRequests,
   defaultStressRequests,
@@ -136,6 +146,9 @@ const RHEUMATOLOGY_COLLECTION = "rheumatology_appointments";
 let isSeeded = false;
 export async function seedInitialDataIfEmpty() {
   if (isSeeded) return;
+  // According to Firebase guidelines, do not attempt to read or seed protected collections while unauthenticated
+  const currentAuth = getFirebaseAuth();
+  if (!currentAuth?.currentUser) return;
   isSeeded = true;
   try {
     const echoSnap = await getDocs(collection(db, ECHO_COLLECTION));
@@ -201,6 +214,14 @@ export function subscribeToAppointments(
   isAdmin: boolean,
   callback: (data: AppointmentRecord[]) => void,
 ): Unsubscribe {
+  // CRITICAL Firebase Integration Guideline:
+  // Only attach onSnapshot listeners if auth is ready and user is authenticated.
+  const currentAuth = getFirebaseAuth();
+  if (!currentAuth?.currentUser) {
+    callback([]);
+    return () => {};
+  }
+
   const colName =
     collectionName === "echo"
       ? ECHO_COLLECTION
@@ -242,7 +263,11 @@ export function subscribeToAppointments(
       callback(records);
     },
     (error) => {
-      console.error(`Error in ${colName} subscription:`, error);
+      try {
+        handleFirestoreError(error, OperationType.GET, colName);
+      } catch (err) {
+        console.warn(`Firestore subscription note for ${colName}:`, err);
+      }
       callback([]);
     },
   );
@@ -273,7 +298,11 @@ export async function createAppointment(
                 ? RHEUMATOLOGY_COLLECTION
                 : OUTSOURCE_COLLECTION;
 
-  await setDoc(doc(db, colName, appointment.id), appointment);
+  try {
+    await setDoc(doc(db, colName, appointment.id), appointment);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `${colName}/${appointment.id}`);
+  }
 }
 
 export async function updateAppointment(
@@ -296,7 +325,11 @@ export async function updateAppointment(
                 ? RHEUMATOLOGY_COLLECTION
                 : OUTSOURCE_COLLECTION;
 
-  await updateDoc(doc(db, colName, id), updates);
+  try {
+    await updateDoc(doc(db, colName, id), updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${colName}/${id}`);
+  }
 }
 
 // Global notification listener for admin/facility
@@ -321,6 +354,14 @@ export function subscribeToAllPendingNotifications(
     facilityName = facilityNameOrCallback;
     isAdmin = !!isAdminOrCallback;
     callback = callbackArg || (() => {});
+  }
+
+  // CRITICAL Firebase Integration Guideline:
+  // Only attach listeners if auth is ready and user is authenticated.
+  const currentAuth = getFirebaseAuth();
+  if (!currentAuth?.currentUser) {
+    callback([]);
+    return () => {};
   }
 
   let echoItems: AppointmentRecord[] = [];

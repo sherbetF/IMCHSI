@@ -2,47 +2,145 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Facility accounts security rules
-    match /facility_accounts/{facilityName} {
-      allow read, write: if true;
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // Admin accounts security rules
-    match /admin_accounts/{adminId} {
-      allow read, write: if true;
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Appointment and report records collections
+    function isAdmin() {
+      return isSignedIn() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isFacilityUser() {
+      return isSignedIn() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // User profiles (secure and restricted)
+    // Non-recursive rule layout to prevent evaluation permission errors on first login setup
+    match /users/{uid} {
+      allow get: if isSignedIn() && (
+        request.auth.uid == uid || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
+        )
+      );
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && (request.auth.uid == uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Facility records (used for managing pre-created accounts & resets)
+    match /facilities/{facilityId} {
+      allow get: if true;
+      allow list: if isSignedIn();
+      allow write: if isAdmin() || (isSignedIn() && !exists(/databases/$(database)/documents/facilities/$(facilityId)));
+    }
+
+    // Admin first-time setup initialization config
+    match /admin_config/{docId} {
+      allow read: if true;
+      allow write: if !exists(/databases/$(database)/documents/admin_config/setup);
+    }
+
+    // Standard secure helper for appointment records
+    function canAccessRecord(record) {
+      return isAdmin() || (
+        isFacilityUser() && (
+          record.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
+          record.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
+        )
+      );
+    }
+
+    function canCreateRecord(record) {
+      return isAdmin() || (
+        isFacilityUser() && (
+          record.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
+          record.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
+        )
+      );
+    }
+
+    function canUpdateRecord(existingRecord, incomingRecord) {
+      return isAdmin() || (
+        isFacilityUser() && (
+          existingRecord.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
+          existingRecord.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
+        ) && (
+          incomingRecord.facilityId == existingRecord.facilityId || 
+          incomingRecord.facilityName == existingRecord.facilityName
+        )
+      );
+    }
+
+    // Secure appointment collections
     match /echo_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /stress_test_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /holter_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /blood_pressure_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /lung_function_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /outsource_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
-    
+
     match /rheumatology_appointments/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /outsource_reports/{docId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
+      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow delete: if isAdmin();
     }
   }
 }

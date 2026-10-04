@@ -56,6 +56,7 @@ export function SiteHeader() {
     openModal,
     isOutsourceAuthenticated,
     openOutsourceAuth,
+    currentUser,
   } = useFacility();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -67,6 +68,10 @@ export function SiteHeader() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
     seedInitialDataIfEmpty();
     const unsub = subscribeToAllPendingNotifications(
       selectedFacility?.name || null,
@@ -85,7 +90,7 @@ export function SiteHeader() {
       unsub();
       window.removeEventListener("hsi_requests_updated", handleUpdate);
     };
-  }, [selectedFacility?.name, isAdmin]);
+  }, [currentUser, selectedFacility?.name, isAdmin]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

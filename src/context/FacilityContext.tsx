@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { FacilityCategory } from "@/data/facilities";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 export interface SelectedFacility {
   category: FacilityCategory | "Hospital Sultan Ismail Admin";
@@ -7,6 +10,18 @@ export interface SelectedFacility {
 }
 
 export type ModalStep = "greeting" | "facility" | "admin";
+
+export function getFacilityId(facilityName: string): string {
+  return facilityName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export function getFacilityAuthEmail(facilityId: string, resetCount: number = 0) {
+  const prefix = resetCount > 0 ? `_r${resetCount}` : "";
+  return `facility_${facilityId.toLowerCase()}${prefix}@auth.local`;
+}
 
 interface FacilityContextType {
   selectedFacility: SelectedFacility | null;
@@ -25,9 +40,12 @@ interface FacilityContextType {
   closeOutsourceAuth: () => void;
   verifyOutsourcePassword: (password: string) => boolean;
   lockOutsource: () => void;
+  // Firebase Auth variables
+  currentUser: User | null;
+  userRole: "admin" | "facility" | null;
+  facilityId: string | null;
 }
 
-const STORAGE_KEY = "hsi_selected_facility_v1";
 const OUTSOURCE_AUTH_KEY = "hsi_outsource_auth_v1";
 
 const FacilityContext = createContext<FacilityContextType | undefined>(undefined);
@@ -42,15 +60,13 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isOutsourceAuthOpen, setIsOutsourceAuthOpen] = useState<boolean>(false);
   const [onOutsourceSuccessCb, setOnOutsourceSuccessCb] = useState<(() => void) | null>(null);
 
+  // Firebase Auth states
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "facility" | null>(null);
+  const [facilityId, setFacilityId] = useState<string | null>(null);
+
   useEffect(() => {
     setIsMounted(true);
-    // Always start with no facility selected upon opening website fresh
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
 
     try {
       const outsourceAuthSaved = sessionStorage.getItem(OUTSOURCE_AUTH_KEY);
@@ -60,29 +76,70 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {
       // ignore
     }
+
+    // Set up Firebase Auth state listener
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            if (userData.active === true) {
+              setUserRole(userData.role);
+              if (userData.role === "admin") {
+                setFacilityId(null);
+                setSelectedFacilityState({
+                  category: "Hospital Sultan Ismail Admin",
+                  name: "Hospital Sultan Ismail (Admin Mode)",
+                });
+              } else if (userData.role === "facility") {
+                setFacilityId(userData.facilityId);
+                setSelectedFacilityState({
+                  category: userData.category || "Klinik Kesihatan",
+                  name: userData.facilityName,
+                });
+              }
+            } else {
+              await signOut(auth);
+            }
+          } else {
+            // Document does not exist yet (e.g. during registration)
+            // Let the setup flow finish writing the profile
+            console.log("User profile document not found yet.");
+          }
+        } catch (error) {
+          console.error("Error loading user profile on auth change:", error);
+        }
+      } else {
+        setCurrentUser(null);
+        setUserRole(null);
+        setFacilityId(null);
+        setSelectedFacilityState(null);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const setSelectedFacility = (facility: SelectedFacility | null) => {
-    setSelectedFacilityState(facility);
-    if (facility) {
+  const setSelectedFacility = async (facility: SelectedFacility | null) => {
+    if (!facility) {
       try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(facility));
-      } catch {
-        // ignore
+        await signOut(auth);
+      } catch (err) {
+        console.error("Sign out failed:", err);
       }
+      setSelectedFacilityState(null);
+      setIsModalOpen(false);
+    } else {
+      setSelectedFacilityState(facility);
       setIsModalOpen(false);
       if (onFacilitySuccessCb) {
         onFacilitySuccessCb();
         setOnFacilitySuccessCb(null);
       }
-    } else {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-        sessionStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // ignore
-      }
-      setIsModalOpen(false);
     }
   };
 
@@ -143,9 +200,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const isAdmin =
-    selectedFacility?.category === "Hospital Sultan Ismail Admin" ||
-    selectedFacility?.name.toLowerCase().includes("admin") ||
-    false;
+    userRole === "admin" || selectedFacility?.category === "Hospital Sultan Ismail Admin";
 
   return (
     <FacilityContext.Provider
@@ -165,6 +220,9 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         closeOutsourceAuth,
         verifyOutsourcePassword,
         lockOutsource,
+        currentUser,
+        userRole,
+        facilityId,
       }}
     >
       {children}
@@ -188,6 +246,9 @@ const defaultFacilityContext: FacilityContextType = {
   closeOutsourceAuth: () => {},
   verifyOutsourcePassword: () => false,
   lockOutsource: () => {},
+  currentUser: null,
+  userRole: null,
+  facilityId: null,
 };
 
 export const useFacility = () => {
