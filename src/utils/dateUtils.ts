@@ -147,3 +147,97 @@ export function parseDateToTimestamp(dateStr?: string): number {
   const parsed = new Date(trimmed);
   return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
+
+/**
+ * Safely combines a date string (YYYY-MM-DD or DD/MM/YYYY) and a time string
+ * (e.g. "08:30 AM", "09:00 AM", "12:00 PM", "12:00 AM", "02:30 PM", "14:30")
+ * into the intended local Date object.
+ *
+ * Handles AM/PM correctly:
+ *   "08:30 AM" -> 08:30
+ *   "12:00 PM" -> 12:00
+ *   "12:00 AM" -> 00:00
+ *   "02:30 PM" -> 14:30
+ */
+export function combineDateAndTime(dateString: string, timeString: string): Date | null {
+  if (!dateString || !timeString) return null;
+
+  const trimmedDate = dateString.trim();
+  const trimmedTime = timeString.trim();
+
+  let year: number;
+  let month: number;
+  let day: number;
+
+  if (trimmedDate.includes("-")) {
+    const parts = trimmedDate.split("-").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    [year, month, day] = parts;
+  } else if (trimmedDate.includes("/")) {
+    const parts = trimmedDate.split("/").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    [day, month, year] = parts;
+  } else {
+    return null;
+  }
+
+  // Match "HH:mm AM/PM", "H:mm AM/PM", "HH:mm", or "H:mm"
+  const timeMatch = trimmedTime.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!timeMatch) return null;
+
+  let hours = parseInt(timeMatch[1], 10);
+  const minutes = parseInt(timeMatch[2], 10);
+  const modifier = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+
+  if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  if (modifier === "PM") {
+    if (hours < 12) hours += 12;
+  } else if (modifier === "AM") {
+    if (hours === 12) hours = 0;
+  }
+
+  if (hours < 0 || hours > 23) return null;
+
+  const combined = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return isNaN(combined.getTime()) ? null : combined;
+}
+
+/**
+ * Safely extracts date formatted as "YYYY-MM-DD" and time formatted as "hh:mm AM/PM"
+ * from a Date, Firestore Timestamp, or date string.
+ */
+export function extractDateAndTimeString(val: unknown): { date: string; time: string } | null {
+  if (!val) return null;
+  let d: Date | null = null;
+  if (typeof val === "object" && val !== null) {
+    if ("toDate" in val && typeof (val as { toDate: () => Date }).toDate === "function") {
+      d = (val as { toDate: () => Date }).toDate();
+    } else if ("seconds" in val && typeof (val as { seconds: number }).seconds === "number") {
+      d = new Date((val as { seconds: number }).seconds * 1000);
+    }
+  } else if (val instanceof Date) {
+    d = val;
+  } else if (typeof val === "string") {
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime())) d = parsed;
+  }
+
+  if (!d || isNaN(d.getTime())) return null;
+
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const dateStr = `${y}-${m}-${day}`;
+
+  let hours = d.getHours();
+  const mins = pad(d.getMinutes());
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const timeStr = `${pad(hours)}:${mins} ${ampm}`;
+
+  return { date: dateStr, time: timeStr };
+}

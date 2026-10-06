@@ -14,8 +14,7 @@ import fs from "fs";
 import crypto from "crypto";
 import { FACILITIES_DATA } from "../../src/data/facilities.ts";
 
-const TARGET_DATABASE_ID =
-  "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
 
 let cachedApp = null;
 let cachedAuth = null;
@@ -91,27 +90,41 @@ export function getAllCanonicalFacilities() {
  * Generates a cryptographically secure random password.
  */
 export function generateSecurePassword(length = 16) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=";
-  let password = "";
-  const bytes = crypto.randomBytes(length);
-  for (let i = 0; i < length; i++) {
-    password += chars[bytes[i] % chars.length];
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const specials = "!@#$%^&*()_+-=";
+  const allChars = letters + digits + specials;
+
+  while (true) {
+    let password = "";
+    const bytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i++) {
+      password += allChars[bytes[i] % allChars.length];
+    }
+    if (/[a-zA-Z]/.test(password) && /[0-9]/.test(password)) {
+      return password;
+    }
   }
-  return password;
 }
 
 /**
- * Validates password strength (minimum 12 characters).
+ * Validates password strength (minimum 8 characters, at least one letter, at least one number).
  */
 export function validatePasswordStrength(password) {
-  if (!password || typeof password !== "string" || password.length < 12) {
-    throw new Error("Password must be at least 12 characters long.");
+  if (!password || typeof password !== "string" || password.length < 8) {
+    throw new Error("Password must be at least 8 characters long.");
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    throw new Error("Password must contain at least one alphabetic letter.");
+  }
+  if (!/[0-9]/.test(password)) {
+    throw new Error("Password must contain at least one numeric digit.");
   }
 }
 
 /**
  * Checks the account status of a given facilityId.
- * Distinguishes states A, B, C, D, E.
+ * Distinguishes states: EXISTS_ACTIVE, EXISTS_INACTIVE, NOT_CREATED, PARTIAL_MISSING_PROFILE, PARTIAL_MISSING_AUTH, SECURITY_MISMATCH, CONFLICT.
  */
 export async function getFacilityAccountStatus(facilityId) {
   const { auth, db } = initializeAdminApp();
@@ -128,24 +141,40 @@ export async function getFacilityAccountStatus(facilityId) {
     }
   }
 
-  let profileExists = false;
-  let profileData = null;
-  let userUid = authUser ? authUser.uid : null;
+  // Query all profiles in users collection claiming this facilityId
+  const usersQuery = await db.collection("users").where("facilityId", "==", facilityId).get();
 
-  if (authUser) {
+  const matchingProfiles = usersQuery.docs.map((d) => ({
+    uid: d.id,
+    ...d.data(),
+  }));
+
+  if (matchingProfiles.length > 1) {
+    return {
+      facilityId,
+      email,
+      state: "CONFLICT",
+      details: `CONFLICT: ${matchingProfiles.length} profiles claim facilityId '${facilityId}' (UIDs: ${matchingProfiles.map((p) => p.uid).join(", ")}). Manual resolution required.`,
+      authExists,
+      profileExists: true,
+      uid: null,
+      authMetadata: authUser ? authUser.metadata : null,
+      profileData: null,
+      matchingCount: matchingProfiles.length,
+    };
+  }
+
+  let profileExists = matchingProfiles.length === 1;
+  let profileData = profileExists ? matchingProfiles[0] : null;
+  let userUid = profileExists ? matchingProfiles[0].uid : authUser ? authUser.uid : null;
+
+  // If matchingProfiles is 0 but authUser exists, check if users/{authUser.uid} exists
+  if (!profileExists && authUser) {
     const userDocSnap = await db.collection("users").doc(authUser.uid).get();
     if (userDocSnap.exists) {
       profileExists = true;
-      profileData = userDocSnap.data();
-    }
-  } else {
-    // Check if any user document in users collection has this facilityId
-    const usersQuery = await db.collection("users").where("facilityId", "==", facilityId).get();
-    if (!usersQuery.empty) {
-      profileExists = true;
-      const doc = usersQuery.docs[0];
-      userUid = doc.id;
-      profileData = doc.data();
+      profileData = { uid: userDocSnap.id, ...userDocSnap.data() };
+      userUid = userDocSnap.id;
     }
   }
 
@@ -157,16 +186,21 @@ export async function getFacilityAccountStatus(facilityId) {
     state = "NOT_CREATED";
     details = "No Auth account and no trusted profile.";
   } else if (authExists && profileExists) {
-    // Validate role and facilityId match
-    if (profileData.role !== "facility") {
+    // Check if Auth UID matches Profile UID
+    if (authUser.uid !== profileData.uid) {
+      state = "SECURITY_MISMATCH";
+      details = `Security Mismatch: Auth UID (${authUser.uid}) does not match trusted profile UID (${profileData.uid}).`;
+    } else if (profileData.role !== "facility") {
       state = "SECURITY_MISMATCH";
       details = `Security Mismatch: Role is "${profileData.role}", expected "facility".`;
     } else if (profileData.facilityId !== facilityId) {
       state = "SECURITY_MISMATCH";
       details = `Security Mismatch: Profile facilityId "${profileData.facilityId}" does not match target "${facilityId}".`;
+    } else if (authUser.disabled) {
+      state = "EXISTS_INACTIVE";
+      details = "Firebase Auth user is disabled.";
     } else {
       state = profileData.active === false ? "EXISTS_INACTIVE" : "EXISTS_ACTIVE";
-
       details =
         profileData.active === false
           ? "Account exists and is inactive."

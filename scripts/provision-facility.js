@@ -69,7 +69,9 @@ async function main() {
     }
 
     console.log(`\nProvisioning NEW Facility Account: ${facilityName} (${facilityId})`);
-    console.log(`Password Requirements: Minimum 12 characters.`);
+    console.log(
+      `Password Requirements: Minimum 8 characters (at least 1 letter, at least 1 number).`,
+    );
     const password = await getSecurePasswordInput("FACILITY_PASSWORD", "Facility Password");
 
     const result = await provisionFacilityAccount(facilityId, facilityName, category, password);

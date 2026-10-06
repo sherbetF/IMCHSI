@@ -66,6 +66,7 @@ node scripts/manage-facilities.js
 ```
 
 #### Main Menu Options:
+
 1. **List All Facilities**: Displays all 84 canonical facilities with dynamic account existence and active/inactive status.
 2. **Search Facility**: Search facilities by name, `facilityId`, or category.
 3. **Filter by Category**: Filter facilities by `Hospital`, `Klinik Kesihatan (KK)`, `Klinik Kesihatan Ibu & Anak (KKIA)`, or `Klinik Desa (KD)`.
@@ -75,7 +76,7 @@ node scripts/manage-facilities.js
 7. **Reset Facility Password**: Resets an existing facility's password while preserving stable UID, `facilityId`, role, and historical records. Requires explicit administrator confirmation (`YES`).
 8. **Activate / Deactivate Facility**: Toggles facility account active status without deleting Firebase Auth credentials, appointments, or patient data.
 9. **Inspect Facility Account**: Displays safe administrative metadata (Auth status, profile existence, UID, role, active status, creation time, last sign-in time) without exposing passwords or private keys.
-0. **Exit**: Safely exits the manager.
+10. **Exit**: Safely exits the manager.
 
 ---
 

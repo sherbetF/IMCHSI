@@ -13,6 +13,7 @@ import {
   KeyRound,
   Sparkles,
   Info,
+  Stethoscope,
 } from "lucide-react";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
 import { FACILITIES_DATA, FacilityCategory } from "@/data/facilities";
@@ -60,8 +61,10 @@ export function FacilitySelectModal() {
   // Search state for facility name
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Admin auth state
+  // Staff auth state
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
+  const [staffType, setStaffType] = useState<"admin" | "paramedic_nurse" | "doctor">("admin");
+  const [doctorIdInput, setDoctorIdInput] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [authError, setAuthError] = useState("");
 
@@ -85,6 +88,7 @@ export function FacilitySelectModal() {
       setFacilityError("");
       setShowForgotNotice(false);
       setAdminPassword("");
+      setDoctorIdInput("");
       setAuthError("");
     } else {
       if (modalStep === "admin") {
@@ -220,6 +224,14 @@ export function FacilitySelectModal() {
         return;
       }
 
+      // If facility user has a pending password setup requirement, close login modal and let the Gate take over
+      if (data.mustChangePassword === true) {
+        setIsFacilityLoginOpen(false);
+        setFacilityPassword("");
+        closeModal();
+        return;
+      }
+
       // Check if this is the first login recorded for a non-hospital facility
       if (!data.firstLoginAcknowledgedAt && selectedCategory !== "Hospital") {
         setFirstLoginWelcomeUser({
@@ -271,13 +283,24 @@ export function FacilitySelectModal() {
     setAuthError("");
     setFacilityLoading(true);
 
+    let loginEmail = "";
+    if (staffType === "admin") {
+      loginEmail = "admin@auth.local";
+    } else if (staffType === "paramedic_nurse") {
+      loginEmail = "staff_paramedic_nurse@auth.local";
+    } else {
+      const cleanDoctorId = doctorIdInput.trim();
+      if (!cleanDoctorId) {
+        setAuthError("Please enter your Doctor ID.");
+        setFacilityLoading(false);
+        return;
+      }
+      loginEmail = `doctor_${cleanDoctorId.toLowerCase()}@auth.local`;
+    }
+
     try {
       await setPersistence(auth, browserSessionPersistence);
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        "admin@auth.local",
-        adminPassword,
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, adminPassword);
       const user = userCredential.user;
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
@@ -286,36 +309,76 @@ export function FacilitySelectModal() {
         await auth.signOut();
         setAdminPassword("");
         setAuthError(
-          "Administrator authorization profile not found. Administrator accounts must be provisioned through a trusted backend.",
+          staffType === "doctor"
+            ? "Doctor profile not found in system. Please verify Doctor ID or contact Administrator."
+            : "Staff authorization profile not found. Staff accounts must be provisioned through a trusted backend.",
         );
         setFacilityLoading(false);
         return;
       }
 
       const data = userDocSnap.data();
-      if (data.active !== true || data.role !== "admin") {
+      if (
+        data.active !== true ||
+        (data.role !== "admin" && data.role !== "paramedic_nurse" && data.role !== "doctor")
+      ) {
         await auth.signOut();
         setAdminPassword("");
-        setAuthError("This administrator account is disabled or unauthorized.");
+        setAuthError(
+          "This account is currently disabled or unauthorized. Please contact Administrator.",
+        );
         setFacilityLoading(false);
         return;
       }
 
-      setSelectedFacility({
-        facilityId: "admin",
-        category: "Hospital Sultan Ismail Admin",
-        name: "Hospital Sultan Ismail (Admin Mode)",
-      });
+      if (staffType === "doctor" && data.role !== "doctor") {
+        await auth.signOut();
+        setAdminPassword("");
+        setAuthError("Authenticated account does not have Doctor role.");
+        setFacilityLoading(false);
+        return;
+      }
+
+      if (data.role === "admin") {
+        setSelectedFacility({
+          facilityId: "admin",
+          category: "Hospital Sultan Ismail Admin",
+          name: "Hospital Sultan Ismail (Admin Mode)",
+        });
+      } else if (data.role === "paramedic_nurse") {
+        setSelectedFacility({
+          facilityId: "paramedic_nurse",
+          category: "Hospital",
+          name: data.displayName || "Paramedic / Nurse",
+        });
+      } else {
+        setSelectedFacility({
+          facilityId: data.doctorId,
+          category: "Hospital",
+          name: data.displayName || "Rheumatology Doctor",
+        });
+      }
 
       setIsAdminAuthOpen(true);
       setAdminPassword("");
+      setDoctorIdInput("");
       setAuthError("");
-      toast.success("Administrator access granted!");
+      toast.success(
+        data.role === "admin"
+          ? "Administrator access granted!"
+          : data.role === "paramedic_nurse"
+            ? "Staff access granted!"
+            : `Welcome, ${data.displayName || "Doctor"}!`,
+      );
       closeModal();
     } catch (err: unknown) {
-      console.error("Admin sign in failed:", err);
+      console.error("Staff / Doctor sign in failed:", err);
       setAdminPassword("");
-      setAuthError("Incorrect administrator password or unprovisioned administrator account.");
+      setAuthError(
+        staffType === "doctor"
+          ? "Incorrect Doctor ID or password. Please verify credentials or contact Administrator."
+          : `Incorrect ${staffType === "admin" ? "administrator" : "staff"} password or unprovisioned account.`,
+      );
     } finally {
       setFacilityLoading(false);
     }
@@ -474,7 +537,7 @@ export function FacilitySelectModal() {
                   <ShieldCheck className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-base font-bold text-heading">Hospital Admin Access</h2>
+                  <h2 className="text-base font-bold text-heading">Hospital Staff Access</h2>
                   <p className="text-xs text-muted-foreground">
                     Hospital Sultan Ismail Johor Bahru
                   </p>
@@ -499,12 +562,48 @@ export function FacilitySelectModal() {
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
                 <div className="flex items-center gap-2 text-sm font-bold text-heading">
                   <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <h3>Internal Medicine Admin Access</h3>
+                  <h3>Internal Medicine Staff Access</h3>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Enter the administrator password to manage referral requests and view registered
-                  facilities.
+                  Enter your credentials to manage referral requests and scheduling.
                 </p>
+              </div>
+
+              {/* Staff Type Selector */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStaffType("admin")}
+                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
+                    staffType === "admin"
+                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                      : "border-border bg-surface text-muted-foreground hover:border-amber-500/30"
+                  }`}
+                >
+                  Administrator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStaffType("paramedic_nurse")}
+                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
+                    staffType === "paramedic_nurse"
+                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                      : "border-border bg-surface text-muted-foreground hover:border-amber-500/30"
+                  }`}
+                >
+                  Paramedic / Nurse
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStaffType("doctor")}
+                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
+                    staffType === "doctor"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                      : "border-border bg-surface text-muted-foreground hover:border-blue-500/30"
+                  }`}
+                >
+                  Doctor
+                </button>
               </div>
 
               {/* Error Box */}
@@ -514,9 +613,37 @@ export function FacilitySelectModal() {
                 </div>
               )}
 
+              {/* Doctor ID input if doctor */}
+              {staffType === "doctor" && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                    Doctor ID
+                  </label>
+                  <div className="relative">
+                    <Stethoscope className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={doctorIdInput}
+                      onChange={(e) => {
+                        setDoctorIdInput(e.target.value);
+                        setAuthError("");
+                      }}
+                      placeholder="e.g. dr_rheum_..."
+                      className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-mono outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                  Admin Password
+                  {staffType === "admin"
+                    ? "Admin Password"
+                    : staffType === "doctor"
+                      ? "Doctor Password"
+                      : "Staff Password"}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
@@ -527,9 +654,9 @@ export function FacilitySelectModal() {
                       setAdminPassword(e.target.value);
                       setAuthError("");
                     }}
-                    placeholder="Enter admin password..."
+                    placeholder={`Enter ${staffType === "admin" ? "admin" : staffType === "doctor" ? "doctor" : "staff"} password...`}
                     className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    autoFocus
+                    autoFocus={staffType !== "doctor"}
                     required
                   />
                 </div>
@@ -549,11 +676,15 @@ export function FacilitySelectModal() {
                 </button>
                 <button
                   type="submit"
-                  disabled={facilityLoading || !adminPassword}
+                  disabled={
+                    facilityLoading ||
+                    !adminPassword ||
+                    (staffType === "doctor" && !doctorIdInput.trim())
+                  }
                   className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   <ShieldCheck className="h-4 w-4" />
-                  <span>{facilityLoading ? "Verifying..." : "Admin Sign In"}</span>
+                  <span>{facilityLoading ? "Verifying..." : "Sign In"}</span>
                 </button>
               </div>
             </form>
@@ -754,8 +885,8 @@ export function FacilitySelectModal() {
               ).
             </p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your facility account is active for use. Please keep your password secure and contact
-              the administrator if a password reset is required.
+              Your facility account is active for use. Please keep your private password secure and
+              contact the administrator if a password reset is required.
             </p>
             <div className="pt-2">
               <button

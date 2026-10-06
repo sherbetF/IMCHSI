@@ -65,5 +65,92 @@ service firebase.storage {
       allow update: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser()) && isValidReportFile();
       allow delete: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser());
     }
+
+    // -------------------------------------------------------------
+    // SECURE RHEUMATOLOGY CLINICAL ATTACHMENTS (Stage 5)
+    // -------------------------------------------------------------
+    // Database: ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c
+    function getRheumUserDoc() {
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
+        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
+        : firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isRheumActiveUser() {
+      return isSignedIn() &&
+        (firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid)) ||
+         firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))) &&
+        getRheumUserDoc().data.active == true;
+    }
+
+    function isRheumAdmin() {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "admin";
+    }
+
+    function isRheumDoctor() {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "doctor" &&
+        getRheumUserDoc().data.doctorId is string &&
+        getRheumUserDoc().data.doctorId.size() > 0;
+    }
+
+    function isRheumFacilityUser(facilityId) {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "facility" &&
+        getRheumUserDoc().data.facilityId == facilityId;
+    }
+
+    function getRheumReferral(referralId) {
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId))
+        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId))
+        : firestore.get(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+    }
+
+    function rheumReferralExists(referralId) {
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId)) ||
+        firestore.exists(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+    }
+
+    function canFacilityMutateRheumAttachment(facilityId, referralId) {
+      return isRheumFacilityUser(facilityId) &&
+        rheumReferralExists(referralId) &&
+        getRheumReferral(referralId).data.facilityId == facilityId &&
+        (getRheumReferral(referralId).data.status == "Pending Doctor Review" ||
+         getRheumReferral(referralId).data.status == "Returned to Facility");
+    }
+
+    function isValidRheumAttachmentFile() {
+      return request.resource.size <= 10 * 1024 * 1024 &&
+        (request.resource.contentType in ['application/pdf', 'image/jpeg', 'image/png']);
+    }
+
+    match /rheumatology/{facilityId}/{referralId}/{attachmentId}/{fileName} {
+      // READ: Authorized Facility Owner, Active Doctor, or Admin.
+      // Paramedic, Outsource, other facilities, and unauthenticated: DENIED.
+      allow read: if isSignedIn() && (
+        isRheumAdmin() ||
+        isRheumDoctor() ||
+        (isRheumFacilityUser(facilityId) &&
+         rheumReferralExists(referralId) &&
+         getRheumReferral(referralId).data.facilityId == facilityId)
+      );
+
+      // CREATE: Owning Facility only, while referral is in Pending Doctor Review or Returned to Facility.
+      // Validated MIME (PDF, JPEG, PNG) & size (<= 10MB).
+      // Overwriting existing file is forbidden.
+      allow create: if isSignedIn() &&
+        resource == null &&
+        canFacilityMutateRheumAttachment(facilityId, referralId) &&
+        isValidRheumAttachmentFile();
+
+      // UPDATE: Strictly DENIED (No same-path overwrite). Replacement must use a new attachmentId.
+      allow update: if false;
+
+      // DELETE: Owning Facility only, while referral is in Pending Doctor Review or Returned to Facility.
+      // Doctor, Paramedic, Admin, Outsource: DENIED.
+      allow delete: if isSignedIn() &&
+        canFacilityMutateRheumAttachment(facilityId, referralId);
+    }
   }
 }

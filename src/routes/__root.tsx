@@ -3,9 +3,11 @@ import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/r
 import { useEffect } from "react";
 
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { FacilityProvider } from "@/context/FacilityContext";
+import { FacilityProvider, useFacility } from "@/context/FacilityContext";
 import { FacilitySelectModal } from "@/components/hospital/FacilitySelectModal";
+import { FacilityPasswordChangeScreen } from "@/components/facility/FacilityPasswordChangeScreen";
 import { Toaster } from "@/components/ui/sonner";
+import { getFacilityPasswordGateState } from "@/utils/facilityPasswordSecurity";
 
 function NotFoundComponent() {
   return (
@@ -73,15 +75,42 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+function RootContent() {
+  const { currentUser, userRole, mustChangePassword } = useFacility();
+
+  const gateState = getFacilityPasswordGateState({
+    role: userRole,
+    active: true,
+    mustChangePassword,
+  });
+
+  // Security Gate: Authenticated facility users with mustChangePassword: true
+  // MUST NOT enter normal HospitalHub routing or interface.
+  if (currentUser && gateState === "FORCE_PASSWORD_CHANGE") {
+    return (
+      <>
+        <FacilityPasswordChangeScreen />
+        <Toaster />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <FacilitySelectModal />
+      <Outlet />
+      <Toaster />
+    </>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       <FacilityProvider>
-        <FacilitySelectModal />
-        <Outlet />
-        <Toaster />
+        <RootContent />
       </FacilityProvider>
     </QueryClientProvider>
   );

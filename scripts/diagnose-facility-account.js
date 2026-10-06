@@ -11,9 +11,7 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { 
-  getAllCanonicalFacilities
-} from "./lib/facility-account-admin.js";
+import { getAllCanonicalFacilities } from "./lib/facility-account-admin.js";
 
 const TARGET_PROJECT_ID = "outsource-f1e0f";
 const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
@@ -59,7 +57,6 @@ async function diagnose() {
     process.exit(1);
   }
 
-
   // 2. Canonical Registry Validation
   console.log(`Querying Firestore Database: ${db.databaseId}`);
   const canonicalFacilities = getAllCanonicalFacilities();
@@ -80,11 +77,11 @@ async function diagnose() {
       .where("role", "==", "facility")
       .where("facilityId", "==", facilityId)
       .get();
-    
+
     snapshot.forEach((doc) => {
       matchingProfiles.push({ uid: doc.id, ...doc.data() });
     });
-    
+
     console.log(`Matching profile count: ${matchingProfiles.length}`);
     matchingProfiles.forEach((p) => {
       console.log(`  - UID: ${p.uid}`);
@@ -139,7 +136,7 @@ async function diagnose() {
   console.log(`\n==================================================`);
   console.log(`   RELATIONSHIP DIAGNOSTIC`);
   console.log(`==================================================`);
-  
+
   if (matchingProfiles.length > 1) {
     console.log("Result: PROFILE_CONFLICT");
   } else if (matchingProfiles.length === 0 && !authEmailUid) {

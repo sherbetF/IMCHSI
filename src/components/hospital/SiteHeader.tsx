@@ -53,6 +53,8 @@ export function SiteHeader() {
     selectedFacility,
     setSelectedFacility,
     isAdmin,
+    isParamedicNurse,
+    canManageScheduling,
     openModal,
     isOutsourceAuthenticated,
     openOutsourceAuth,
@@ -75,10 +77,14 @@ export function SiteHeader() {
       setNotifications([]);
       return;
     }
-    const unsub = subscribeToAllPendingNotifications(activeFacilityId, isAdmin, (notifs) => {
-      setNotifications(notifs);
-      setReadIds(getReadNotificationIds());
-    });
+    const unsub = subscribeToAllPendingNotifications(
+      activeFacilityId,
+      canManageScheduling,
+      (notifs) => {
+        setNotifications(notifs);
+        setReadIds(getReadNotificationIds());
+      },
+    );
 
     const handleUpdate = () => {
       setReadIds(getReadNotificationIds());
@@ -88,7 +94,7 @@ export function SiteHeader() {
       unsub();
       window.removeEventListener("hsi_requests_updated", handleUpdate);
     };
-  }, [currentUser, facilityId, selectedFacility, activeFacilityId, isAdmin]);
+  }, [currentUser, activeFacilityId, canManageScheduling]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -139,7 +145,10 @@ export function SiteHeader() {
     ? `${now.toLocaleDateString("en-GB", { weekday: "long" })}, ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`
     : "";
 
-  const filteredNav = nav.filter((item) => {
+  const filteredNav = [
+    ...nav,
+    ...(isAdmin ? [{ label: "Account Manager", to: "/admin-facilities" as const }] : []),
+  ].filter((item) => {
     if (item.to === "/outsource" && selectedFacility && !isAdmin) {
       return false;
     }
@@ -166,7 +175,7 @@ export function SiteHeader() {
                   type="button"
                   onClick={() => openModal("facility")}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold hover:opacity-80 transition-opacity ${
-                    isAdmin
+                    canManageScheduling
                       ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                       : "border-primary/30 bg-primary/10 text-primary"
                   }`}
@@ -174,7 +183,8 @@ export function SiteHeader() {
                 >
                   <Building2 className="h-3.5 w-3.5" />
                   <span>
-                    {selectedFacility.name} {isAdmin ? "" : `(${selectedFacility.category})`}
+                    {selectedFacility.name}{" "}
+                    {canManageScheduling ? "" : `(${selectedFacility.category})`}
                   </span>
                 </button>
               </>
@@ -284,18 +294,31 @@ export function SiteHeader() {
               >
                 <ShieldCheck className="h-4 w-4" />
               </button>
-            ) : isAdmin ? (
-              /* Hospital Admin Logged In Badge */
-              <button
-                type="button"
-                onClick={() => openModal("admin")}
-                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30 ring-2 ring-amber-500/30 transition-all shadow-sm"
-                title="Hospital Admin (Logged In) • Click to manage"
-                aria-label="Admin Status"
+            ) : canManageScheduling ? (
+              /* Staff Logged In Badge (Admin/Paramedic) */
+              <div
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/30 transition-all shadow-sm"
+                title={
+                  isAdmin
+                    ? "Hospital Admin (Logged In) • Click to manage"
+                    : "Paramedic / Nurse (Logged In)"
+                }
               >
-                <ShieldCheck className="h-4 w-4" />
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/admin-facilities" })}
+                    className="flex h-full w-full items-center justify-center rounded-full hover:bg-amber-500/10 transition-colors"
+                    aria-label="Admin Status"
+                    title="Open Account Manager"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
                 <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background animate-pulse" />
-              </button>
+              </div>
             ) : null}
 
             {/* Notification Bell Dropdown Button for logged in users (Facility or Admin) beside Contact Us */}
@@ -304,12 +327,12 @@ export function SiteHeader() {
                 <button
                   onClick={() => setIsNotifOpen(!isNotifOpen)}
                   className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors shadow-sm ${
-                    isAdmin
+                    canManageScheduling
                       ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
                       : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
                   }`}
                   title={
-                    isAdmin
+                    canManageScheduling
                       ? "Pending Referral Notifications"
                       : "Appointment Requests & Notifications"
                   }
@@ -328,12 +351,12 @@ export function SiteHeader() {
                     <div className="flex items-center justify-between border-b border-border pb-3">
                       <div className="flex items-center gap-2">
                         <Bell
-                          className={`h-4 w-4 ${isAdmin ? "text-amber-500" : "text-primary"}`}
+                          className={`h-4 w-4 ${canManageScheduling ? "text-amber-500" : "text-primary"}`}
                         />
                         <h4 className="text-sm font-bold text-heading">Notifications</h4>
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            isAdmin
+                            canManageScheduling
                               ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
                               : "bg-primary/20 text-primary"
                           }`}
@@ -354,7 +377,7 @@ export function SiteHeader() {
                     <div className="mt-3 max-h-80 overflow-y-auto space-y-2.5 pr-1">
                       {notifications.length === 0 ? (
                         <p className="py-6 text-center text-xs text-muted-foreground">
-                          {isAdmin
+                          {canManageScheduling
                             ? "No pending appointment requests."
                             : "No appointment schedule updates or notifications."}
                         </p>
@@ -384,7 +407,7 @@ export function SiteHeader() {
                                       : "border-destructive/40 bg-destructive/10 text-foreground"
                                     : isRead
                                       ? "border-border/50 bg-background/50 text-muted-foreground"
-                                      : isAdmin
+                                      : canManageScheduling
                                         ? "border-amber-500/40 bg-amber-500/10 text-foreground"
                                         : "border-primary/40 bg-primary/5 text-foreground"
                               }`}

@@ -8,6 +8,8 @@ import {
   updateDoc,
   orderBy,
   Unsubscribe,
+  Timestamp,
+  FieldValue,
 } from "firebase/firestore";
 import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { getAuth } from "firebase/auth";
@@ -113,7 +115,10 @@ export interface AppointmentRecord {
     | "Scheduled"
     | "Under Review"
     | "Rejected"
-    | "Completed - Result Ready";
+    | "Completed - Result Ready"
+    | "Pending Doctor Review"
+    | "Returned to Facility"
+    | "Awaiting Scheduling";
   createdAt: string;
   scheduledDate?: string;
   rejectReason?: string;
@@ -128,6 +133,48 @@ export interface AppointmentRecord {
     dataUrl?: string; // Legacy fallback
   };
   [key: string]: unknown;
+}
+
+export interface RheumatologyRecord extends Omit<AppointmentRecord, "status"> {
+  // SYSTEM / IDENTITY
+  status:
+    | "Pending Doctor Review"
+    | "Returned to Facility"
+    | "Awaiting Scheduling"
+    | "Scheduled"
+    | "Rejected"
+    | "Pending Confirmation"; // For legacy compatibility
+
+  submittedAt?: Timestamp | FieldValue | null;
+  updatedAt?: Timestamp | FieldValue | null;
+
+  // FACILITY DOMAIN
+  clinicalIndication: string;
+  diagnosis: string;
+  referralAttachments?: Array<{
+    storagePath: string;
+    fileName: string;
+    uploadedAt: Timestamp | FieldValue | null;
+  }>;
+
+  // DOCTOR DOMAIN (Clinical Review)
+  doctorReviewStatus?: "Reviewed" | "Returned" | "Rejected";
+  reviewedByDoctorId?: string;
+  reviewedByUid?: string;
+  reviewedByDoctorNameSnapshot?: string;
+  reviewedAt?: Timestamp | FieldValue | null;
+  reviewTimeframe?: string; // e.g. "Within 4 months"
+  requiredInvestigations?: string[]; // e.g. ["FBC", "CRP"]
+  doctorInstructions?: string;
+  returnReason?: string;
+  rejectReason?: string;
+
+  // PARAMEDIC DOMAIN (Operational Scheduling)
+  bloodTakingDate?: Timestamp | FieldValue | null;
+  doctorAppointmentDate?: Timestamp | FieldValue | null;
+  scheduledByUid?: string;
+  scheduledByNameSnapshot?: string;
+  scheduledAt?: Timestamp | FieldValue | null;
 }
 
 const ECHO_COLLECTION = "echo_appointments";
@@ -148,7 +195,7 @@ export type SubscriptionStatus =
 export function subscribeToAppointments(
   collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
   facilityId: string | null,
-  isAdmin: boolean,
+  viewAll: boolean,
   callback: (data: AppointmentRecord[], status?: SubscriptionStatus) => void,
 ): Unsubscribe {
   // CRITICAL Firebase Integration Guideline:
@@ -177,7 +224,7 @@ export function subscribeToAppointments(
   const colRef = collection(db, colName);
 
   let q;
-  if (isAdmin) {
+  if (viewAll) {
     q = query(colRef);
   } else if (facilityId) {
     q = query(colRef, where("facilityId", "==", facilityId));
@@ -279,27 +326,27 @@ export async function updateAppointment(
   }
 }
 
-// Global notification listener for admin/facility
+// Global notification listener for admin/paramedic_nurse/facility
 export function subscribeToAllPendingNotifications(
   facilityIdOrCallback: string | null | ((notifications: UnifiedRequestNotification[]) => void),
-  isAdminOrCallback?: boolean | ((notifications: UnifiedRequestNotification[]) => void),
+  viewAllOrCallback?: boolean | ((notifications: UnifiedRequestNotification[]) => void),
   callbackArg?: (notifications: UnifiedRequestNotification[]) => void,
 ) {
   let facilityId: string | null = null;
-  let isAdmin = true;
+  let viewAll = true;
   let callback: (notifications: UnifiedRequestNotification[]) => void;
 
   if (typeof facilityIdOrCallback === "function") {
     callback = facilityIdOrCallback;
     facilityId = null;
-    isAdmin = true;
-  } else if (typeof isAdminOrCallback === "function") {
+    viewAll = true;
+  } else if (typeof viewAllOrCallback === "function") {
     facilityId = facilityIdOrCallback;
-    isAdmin = true;
-    callback = isAdminOrCallback;
+    viewAll = true;
+    callback = viewAllOrCallback;
   } else {
     facilityId = facilityIdOrCallback;
-    isAdmin = !!isAdminOrCallback;
+    viewAll = !!viewAllOrCallback;
     callback = callbackArg || (() => {});
   }
 
@@ -328,8 +375,8 @@ export function subscribeToAllPendingNotifications(
       route: UnifiedRequestNotification["route"],
     ) => {
       items.forEach((r) => {
-        if (isAdmin) {
-          // Admin receives notifications for pending requests needing review
+        if (viewAll) {
+          // Privileged users (Admin/Paramedic) receive notifications for pending requests needing review
           if (r.status === "Pending Confirmation" || r.status === "Under Review") {
             notifs.push({
               id: `${r.id}-pending`,
@@ -439,7 +486,7 @@ export function subscribeToAllPendingNotifications(
 
     // Sort: For customers, prioritize scheduled items first, then by date descending
     notifs.sort((a, b) => {
-      if (!isAdmin) {
+      if (!viewAll) {
         if (a.notificationType === "scheduled" && b.notificationType !== "scheduled") return -1;
         if (b.notificationType === "scheduled" && a.notificationType !== "scheduled") return 1;
       }
@@ -449,37 +496,37 @@ export function subscribeToAllPendingNotifications(
     callback(notifs);
   };
 
-  const unsubEcho = subscribeToAppointments("echo", facilityId, isAdmin, (data) => {
+  const unsubEcho = subscribeToAppointments("echo", facilityId, viewAll, (data) => {
     echoItems = data;
     updateAll();
   });
 
-  const unsubStress = subscribeToAppointments("stress", facilityId, isAdmin, (data) => {
+  const unsubStress = subscribeToAppointments("stress", facilityId, viewAll, (data) => {
     stressItems = data;
     updateAll();
   });
 
-  const unsubHolter = subscribeToAppointments("holter", facilityId, isAdmin, (data) => {
+  const unsubHolter = subscribeToAppointments("holter", facilityId, viewAll, (data) => {
     holterItems = data;
     updateAll();
   });
 
-  const unsubBP = subscribeToAppointments("bp", facilityId, isAdmin, (data) => {
+  const unsubBP = subscribeToAppointments("bp", facilityId, viewAll, (data) => {
     bpItems = data;
     updateAll();
   });
 
-  const unsubLFT = subscribeToAppointments("lft", facilityId, isAdmin, (data) => {
+  const unsubLFT = subscribeToAppointments("lft", facilityId, viewAll, (data) => {
     lftItems = data;
     updateAll();
   });
 
-  const unsubOutsource = subscribeToAppointments("outsource", facilityId, isAdmin, (data) => {
+  const unsubOutsource = subscribeToAppointments("outsource", facilityId, viewAll, (data) => {
     outsourceItems = data;
     updateAll();
   });
 
-  const unsubRheumatology = subscribeToAppointments("rheumatology", facilityId, isAdmin, (data) => {
+  const unsubRheumatology = subscribeToAppointments("rheumatology", facilityId, viewAll, (data) => {
     rheumatologyItems = data;
     updateAll();
   });

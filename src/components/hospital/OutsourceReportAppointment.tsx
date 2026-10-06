@@ -217,7 +217,11 @@ export function OutsourceReportAppointment() {
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments("outsource", facilityId, isAdmin, (data, status) => {
+    const scope: AppointmentReadScope = isAdmin
+      ? { type: "central" }
+      : { type: "facility", facilityId: facilityId || "" };
+
+    const unsub = subscribeToAppointments("outsource", scope, (data, status) => {
       setRequests(data);
       if (status) setSubStatus(status);
       setLoading(false);

@@ -43,10 +43,16 @@ import { db } from "@/lib/firebase";
 export type AppointmentRequest = AppointmentRecord;
 
 export function EchoAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, facilityId } =
-    useFacility();
+  const {
+    selectedFacility,
+    setSelectedFacility,
+    isAdmin,
+    canManageScheduling,
+    setIsModalOpen,
+    facilityId,
+  } = useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
-    isAdmin ? "tracker" : "request",
+    canManageScheduling ? "tracker" : "request",
   );
   const [requests, setRequests] = useState<AppointmentRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,21 +114,26 @@ export function EchoAppointment() {
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments("echo", facilityId, isAdmin, (data, status) => {
-      setRequests(data);
-      if (status) setSubStatus(status);
-      setLoading(false);
-    });
+    const unsub = subscribeToAppointments(
+      "echo",
+      facilityId,
+      canManageScheduling,
+      (data, status) => {
+        setRequests(data);
+        if (status) setSubStatus(status);
+        setLoading(false);
+      },
+    );
 
     return () => unsub();
-  }, [facilityId, isAdmin]);
+  }, [facilityId, canManageScheduling]);
 
-  // Switch to tracker tab automatically when in admin mode
+  // Switch to tracker tab automatically when in scheduling mode
   useEffect(() => {
-    if (isAdmin) {
+    if (canManageScheduling) {
       setActiveTab("tracker");
     }
-  }, [isAdmin]);
+  }, [canManageScheduling]);
 
   // Auto-dismiss submitted reference banner after 1 minute (60s), then gradually disappear
   useEffect(() => {
@@ -202,7 +213,7 @@ export function EchoAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "echo_appointments");
-      const q = isAdmin
+      const q = canManageScheduling
         ? query(colRef, where("mrn", "==", formData.mrn.trim()))
         : query(
             colRef,
@@ -309,7 +320,7 @@ export function EchoAppointment() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: AppointmentRequest["status"]) => {
-    if (!isAdmin) return;
+    if (!canManageScheduling) return;
     try {
       await updateAppointment("echo", id, { status: newStatus });
       toast.success(`Updated status to ${newStatus}`);
@@ -361,7 +372,7 @@ export function EchoAppointment() {
           </p>
         </div>
 
-        {!isAdmin && (
+        {!canManageScheduling && (
           <div className="flex gap-2 rounded-lg border border-border bg-surface p-1">
             <button
               onClick={() => setActiveTab("request")}
@@ -425,8 +436,8 @@ export function EchoAppointment() {
         </div>
       )}
 
-      {/* TAB 1: Booking Form (Only available for non-admin referring facilities) */}
-      {activeTab === "request" && !isAdmin && (
+      {/* TAB 1: Booking Form (Only available for non-privileged referring facilities) */}
+      {activeTab === "request" && !canManageScheduling && (
         <div className="mt-8 grid gap-8 lg:grid-cols-3">
           <form
             onSubmit={handleSubmit}
@@ -665,7 +676,7 @@ export function EchoAppointment() {
       )}
 
       {/* TAB 2: Tracker */}
-      {(activeTab === "tracker" || isAdmin) && (
+      {(activeTab === "tracker" || canManageScheduling) && (
         <div className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-background p-4">
             <div className="relative min-w-[260px] flex-1">
@@ -721,7 +732,7 @@ export function EchoAppointment() {
                       >
                         {r.urgency}
                       </span>
-                      {isAdmin && (
+                      {canManageScheduling && (
                         <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                           {r.facilityName}
                         </span>
@@ -755,7 +766,7 @@ export function EchoAppointment() {
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||
                         r.status === "Scheduled") &&
-                        !isAdmin && (
+                        !canManageScheduling && (
                           <button
                             type="button"
                             onClick={() => setSelectedFormReq(r)}
@@ -767,7 +778,7 @@ export function EchoAppointment() {
                           </button>
                         )}
 
-                      {isAdmin && r.status !== "Rejected" && (
+                      {canManageScheduling && r.status !== "Rejected" && (
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
@@ -821,7 +832,7 @@ export function EchoAppointment() {
                   {/* Expanded Detail View */}
                   {isExpanded && (
                     <div className="mt-2.5 rounded-lg border border-border bg-surface/80 p-3 text-xs space-y-2 animate-in fade-in duration-150 relative">
-                      {isAdmin && r.status !== "Rejected" && (
+                      {canManageScheduling && r.status !== "Rejected" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -892,7 +903,7 @@ export function EchoAppointment() {
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||
                         r.status === "Scheduled") &&
-                        !isAdmin && (
+                        !canManageScheduling && (
                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 bg-primary/5 -mx-3 -mb-3 p-3 rounded-b-lg">
                             <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />

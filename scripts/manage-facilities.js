@@ -49,7 +49,9 @@ async function getPasswordInteractively(rl) {
   );
 
   if (choice === "1") {
-    console.log("Password requirements: Minimum 12 characters.");
+    console.log(
+      "Password requirements: Minimum 8 characters (at least 1 letter, at least 1 number).",
+    );
     const pass1 = await promptHiddenPassword("Enter Password: ");
     try {
       validatePasswordStrength(pass1);

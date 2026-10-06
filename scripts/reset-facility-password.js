@@ -73,7 +73,9 @@ async function main() {
     }
 
     console.log(`\nTarget Facility ID: ${facilityId}`);
-    console.log(`Password Requirements: Minimum 12 characters.`);
+    console.log(
+      `Password Requirements: Minimum 8 characters (at least 1 letter, at least 1 number).`,
+    );
     const newPassword = await getSecurePasswordInput("FACILITY_PASSWORD", "New Facility Password");
 
     await resetFacilityPassword(facilityId, newPassword);

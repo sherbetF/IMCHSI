@@ -29,6 +29,24 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
     }
 
+    // Paramedic / Nurse Authorization:
+    // Centralized appointment scheduling and workflow management role.
+    function isParamedicNurse() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "paramedic_nurse" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // Doctor Authorization:
+    // Clinical review and instructional role for specialized departments (e.g. Rheumatology).
+    function isDoctor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "doctor" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
     function isOutsourceUser() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -50,14 +68,13 @@ service cloud.firestore {
       // Public client creation of users/{uid} is strictly denied. Provisioning is backend-only via Firebase Admin SDK.
       allow create: if false;
       
-      // Updates: Admins managing facility active status OR authenticated users acknowledging first login metadata
+      // Updates: Admins managing facility / paramedic_nurse active status OR authenticated users acknowledging first login metadata
       allow update: if (isAdmin() &&
         request.resource.data.role == resource.data.role &&
-        request.resource.data.facilityId == resource.data.facilityId &&
-        resource.data.role == "facility") ||
+        (resource.data.role == "facility" || resource.data.role == "paramedic_nurse") &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])) ||
         (isSignedIn() && request.auth.uid == uid &&
          request.resource.data.role == resource.data.role &&
-         request.resource.data.facilityId == resource.data.facilityId &&
          request.resource.data.active == resource.data.active &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt']));
       
@@ -82,40 +99,144 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId;
     }
 
-    // Canonical facility authorization helpers:
-    // Strictly evaluates canonical facilityId from trusted users/{uid} document.
+    // Canonical facility & role authorization helpers:
+    // Strictly evaluates canonical facilityId and roles from trusted users/{uid} document.
     // facilityName NEVER grants authorization.
     function canAccessRecord(record) {
-      return isAdmin() || (
-        isSignedIn() &&
+      return isAdmin() || isParamedicNurse() || (
+        isFacilityUser() &&
         record.facilityId is string &&
-        (isFacilityUser() ? record.facilityId == userFacilityId() : true)
+        record.facilityId == userFacilityId()
       );
     }
 
     function canCreateRecord(record) {
       return isAdmin() || (
-        isSignedIn() &&
+        isFacilityUser() &&
         record.facilityId is string &&
-        (isFacilityUser() ? record.facilityId == userFacilityId() : true)
+        record.facilityId == userFacilityId()
       );
+    }
+
+    // Paramedic / Nurse update permission is strictly limited to actual scheduling/workflow fields.
+    // Cannot alter facilityId, patient clinical records, or delete requests.
+    function canParamedicNurseUpdateRecord(existingRecord, incomingRecord) {
+      return isParamedicNurse() &&
+        existingRecord.facilityId is string &&
+        incomingRecord.facilityId == existingRecord.facilityId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'scheduledDate',
+          'rejectReason',
+          'rejectedBy',
+          'updatedAt'
+        ]);
     }
 
     function canUpdateRecord(existingRecord, incomingRecord) {
-      return isAdmin() || (
-        isSignedIn() &&
-        existingRecord.facilityId is string &&
-        (isFacilityUser() ? existingRecord.facilityId == userFacilityId() : true) &&
-        incomingRecord.facilityId == existingRecord.facilityId
-      );
+      return isAdmin() || canParamedicNurseUpdateRecord(existingRecord, incomingRecord);
     }
 
     function canDeleteRecord(existingRecord) {
-      return isAdmin() || (
-        isSignedIn() &&
-        existingRecord.facilityId is string &&
-        (isFacilityUser() ? existingRecord.facilityId == userFacilityId() : true)
-      );
+      return isAdmin();
+    }
+
+    // --- RHEUMATOLOGY SPECIFIC RULES ---
+
+    function canCreateRheumRecord(incoming) {
+      return isFacilityUser() &&
+        incoming.facilityId is string &&
+        incoming.facilityId == userFacilityId() &&
+        incoming.status == "Pending Doctor Review" &&
+        incoming.keys().hasAll([
+          'id', 'facilityId', 'patientName', 'mrn', 'contactNumber',
+          'clinicalIndication', 'diagnosis', 'status', 'createdAt', 'submittedAt', 'updatedAt'
+        ]) &&
+        incoming.keys().hasOnly([
+          'id', 'referralNumber', 'facilityId', 'facilityName', 'facilityCategory',
+          'patientName', 'mrn', 'contactNumber', 'email', 'procedureType', 'urgency',
+          'referringDoctor', 'department', 'clinicalIndication', 'diagnosis',
+          'duplicateJustification', 'status', 'createdAt', 'submittedAt', 'updatedAt'
+        ]);
+    }
+
+    // Facility can update clinical info only when status is Returned to Facility
+    // and must transition status strictly to "Pending Doctor Review"
+    function isRheumFacilityUpdate(existing, incoming) {
+      return isFacilityUser() &&
+        existing.status != "Rejected" &&
+        existing.facilityId == userFacilityId() &&
+        incoming.facilityId == existing.facilityId &&
+        existing.status == "Returned to Facility" &&
+        incoming.status == "Pending Doctor Review" &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'patientName', 'mrn', 'contactNumber', 'email', 'clinicalIndication', 'diagnosis', 'updatedAt', 'status'
+        ]);
+    }
+
+    // Doctor can only update review-specific fields and perform explicit clinical state transitions
+    function isRheumDoctorUpdate(existing, incoming) {
+      return isDoctor() &&
+        existing.status != "Rejected" &&
+        incoming.facilityId == existing.facilityId &&
+        incoming.reviewedByUid == request.auth.uid &&
+        incoming.reviewedByDoctorId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.doctorId &&
+        (!('reviewedByDoctorNameSnapshot' in incoming) || incoming.reviewedByDoctorNameSnapshot == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName) &&
+        existing.status == "Pending Doctor Review" &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'doctorReviewStatus', 'reviewedByDoctorId', 'reviewedByUid', 'reviewedByDoctorNameSnapshot',
+          'reviewedAt', 'reviewTimeframe', 'requiredInvestigations', 'doctorInstructions', 'returnReason', 'rejectReason', 'updatedAt'
+        ]) && (
+          // Transition 1: Awaiting Scheduling (review completed)
+          (incoming.status == "Awaiting Scheduling" &&
+           incoming.reviewedByDoctorId is string && incoming.reviewedByDoctorId.size() > 0 &&
+           incoming.reviewedByUid is string &&
+           incoming.reviewedAt != null &&
+           incoming.reviewTimeframe is string && incoming.reviewTimeframe.size() > 0) ||
+          // Transition 2: Returned to Facility (requires returnReason)
+          (incoming.status == "Returned to Facility" &&
+           incoming.returnReason is string && incoming.returnReason.size() > 0) ||
+          // Transition 3: Rejected (requires rejectReason)
+          (incoming.status == "Rejected" &&
+           incoming.rejectReason is string && incoming.rejectReason.size() > 0)
+        );
+    }
+
+    // Paramedic can only update scheduling fields and transition status from Awaiting Scheduling to Scheduled, or reschedule
+    function isRheumParamedicUpdate(existing, incoming) {
+      return isParamedicNurse() &&
+        existing.status != "Rejected" &&
+        incoming.facilityId == existing.facilityId &&
+        incoming.scheduledByUid == request.auth.uid &&
+        (!('scheduledByNameSnapshot' in incoming) || incoming.scheduledByNameSnapshot == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'bloodTakingDate', 'doctorAppointmentDate', 'scheduledByUid', 'scheduledByNameSnapshot', 'scheduledAt', 'updatedAt'
+        ]) && (
+          // Transition 1: Awaiting Scheduling -> Scheduled
+          (existing.status == "Awaiting Scheduling" && incoming.status == "Scheduled" &&
+           incoming.doctorAppointmentDate != null && incoming.scheduledAt != null) ||
+          // Transition 2: Scheduled -> Scheduled (Reschedule)
+          (existing.status == "Scheduled" && incoming.status == "Scheduled" &&
+           incoming.doctorAppointmentDate != null)
+        );
+    }
+
+    // Attachment metadata creation validation helper (Stage 5 / 5B)
+    function canCreateRheumAttachment(incoming, docId, attachmentId) {
+      return incoming.keys().hasAll([
+          'attachmentId', 'originalFileName', 'storagePath', 'contentType', 'size', 'uploadedAt', 'uploadedByUid'
+        ]) &&
+        incoming.keys().hasOnly([
+          'attachmentId', 'originalFileName', 'storagePath', 'contentType', 'size', 'uploadedAt', 'uploadedByUid'
+        ]) &&
+        incoming.attachmentId == attachmentId &&
+        incoming.uploadedByUid == request.auth.uid &&
+        incoming.contentType in ['application/pdf', 'image/jpeg', 'image/png'] &&
+        incoming.size is number && incoming.size > 0 && incoming.size <= 10 * 1024 * 1024 &&
+        incoming.storagePath is string &&
+        incoming.storagePath.matches('^rheumatology/' + userFacilityId() + '/' + docId + '/' + attachmentId + '/.*$') &&
+        incoming.originalFileName is string && incoming.originalFileName.size() > 0 && incoming.originalFileName.size() <= 255 &&
+        incoming.uploadedAt == request.time;
     }
 
     // Secure appointment collections
@@ -162,10 +283,56 @@ service cloud.firestore {
     }
 
     match /rheumatology_appointments/{docId} {
-      allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
+      allow read: if isSignedIn() && (isAdmin() || isDoctor() || isParamedicNurse() || canAccessRecord(resource.data));
+      allow create: if isSignedIn() && canCreateRheumRecord(request.resource.data);
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        isRheumFacilityUpdate(resource.data, request.resource.data) ||
+        isRheumDoctorUpdate(resource.data, request.resource.data) ||
+        isRheumParamedicUpdate(resource.data, request.resource.data)
+      );
+      allow delete: if false; // No routine hard delete
+
+      // Stage 5 & 5B: Clinical Document Attachments Subcollection
+      match /attachments/{attachmentId} {
+        // READ: Admin, Active Doctor, or Owning Facility User
+        // Paramedic, Outsource, Other Facility, Unauthenticated: DENIED
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          isDoctor() ||
+          (isFacilityUser() &&
+           get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.facilityId == userFacilityId())
+        );
+
+        // CREATE: Owning Facility User only, while referral is in Pending Doctor Review or Returned to Facility
+        // Requires slot reservation in attachment_control/summary
+        allow create: if isSignedIn() &&
+          isFacilityUser() &&
+          get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.facilityId == userFacilityId() &&
+          (get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.status == "Pending Doctor Review" ||
+           get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.status == "Returned to Facility") &&
+          canCreateRheumAttachment(request.resource.data, docId, attachmentId) &&
+          exists(/databases/$(database)/documents/rheumatology_appointments/$(docId)/attachment_control/summary) &&
+          get(/databases/$(database)/documents/rheumatology_appointments/$(docId)/attachment_control/summary).data.activeAttachmentIds.hasAny([attachmentId]);
+
+        // UPDATE: Metadata is immutable
+        allow update: if false;
+
+        // DELETE: Owning Facility User only for own uploaded attachment, while referral is in mutable state
+        allow delete: if isSignedIn() &&
+          isFacilityUser() &&
+          resource.data.uploadedByUid == request.auth.uid &&
+          get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.facilityId == userFacilityId() &&
+          (get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.status == "Pending Doctor Review" ||
+           get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.status == "Returned to Facility");
+      }
+
+      // Stage 5C: Backend-Owned Attachment Control Subcollection
+      // Direct browser access is completely forbidden for all roles (read & write).
+      // Managed exclusively by trusted Firebase Callable Cloud Functions using Admin SDK.
+      match /attachment_control/{controlId} {
+        allow read, write: if false;
+      }
     }
 
     match /outsource_reports/{docId} {

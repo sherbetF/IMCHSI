@@ -212,6 +212,40 @@
         "resultFile": { "type": "object" }
       },
       "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "rheumatology_attachments": {
+      "title": "Rheumatology Clinical Attachments",
+      "description": "Metadata for supporting clinical documents attached to Rheumatology referrals",
+      "type": "object",
+      "properties": {
+        "attachmentId": { "type": "string" },
+        "originalFileName": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "contentType": { "type": "string", "enum": ["application/pdf", "image/jpeg", "image/png"] },
+        "size": { "type": "number" },
+        "uploadedAt": { "type": "string" },
+        "uploadedByUid": { "type": "string" }
+      },
+      "required": [
+        "attachmentId",
+        "originalFileName",
+        "storagePath",
+        "contentType",
+        "size",
+        "uploadedAt",
+        "uploadedByUid"
+      ]
+    },
+    "rheumatology_attachment_control": {
+      "title": "Rheumatology Attachment Control",
+      "description": "Atomic control and race-safe reservation tracking for referral clinical attachments",
+      "type": "object",
+      "properties": {
+        "activeAttachmentIds": { "type": "array" },
+        "activeCount": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["activeAttachmentIds", "activeCount", "updatedAt"]
     }
   },
   "firestore": {
@@ -254,6 +288,14 @@
     "/rheumatology_appointments/{docId}": {
       "schema": "rheumatology_appointments",
       "description": "Rheumatology clinic consultation and appointment requests"
+    },
+    "/rheumatology_appointments/{docId}/attachments/{attachmentId}": {
+      "schema": "rheumatology_attachments",
+      "description": "Supporting clinical documents attached to Rheumatology referrals"
+    },
+    "/rheumatology_appointments/{docId}/attachment_control/{controlId}": {
+      "schema": "rheumatology_attachment_control",
+      "description": "Atomic slot reservation and limit control for referral clinical attachments"
     },
     "/outsource_reports/{docId}": {
       "schema": "outsource_appointments",

@@ -10,13 +10,28 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminFacilitiesRouteImport } from './routes/admin-facilities'
+import { Route as BloodPressureRouteImport } from './routes/blood-pressure'
 import { Route as EchoRouteImport } from './routes/echo'
 import { Route as HolterRouteImport } from './routes/holter'
+import { Route as LungFunctionRouteImport } from './routes/lung-function'
+import { Route as OutsourceRouteImport } from './routes/outsource'
+import { Route as RheumatologyRouteImport } from './routes/rheumatology'
 import { Route as StressTestRouteImport } from './routes/stress-test'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminFacilitiesRoute = AdminFacilitiesRouteImport.update({
+  id: '/admin-facilities',
+  path: '/admin-facilities',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BloodPressureRoute = BloodPressureRouteImport.update({
+  id: '/blood-pressure',
+  path: '/blood-pressure',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EchoRoute = EchoRouteImport.update({
@@ -29,6 +44,21 @@ const HolterRoute = HolterRouteImport.update({
   path: '/holter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LungFunctionRoute = LungFunctionRouteImport.update({
+  id: '/lung-function',
+  path: '/lung-function',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OutsourceRoute = OutsourceRouteImport.update({
+  id: '/outsource',
+  path: '/outsource',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RheumatologyRoute = RheumatologyRouteImport.update({
+  id: '/rheumatology',
+  path: '/rheumatology',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StressTestRoute = StressTestRouteImport.update({
   id: '/stress-test',
   path: '/stress-test',
@@ -37,35 +67,83 @@ const StressTestRoute = StressTestRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin-facilities': typeof AdminFacilitiesRoute
+  '/blood-pressure': typeof BloodPressureRoute
   '/echo': typeof EchoRoute
   '/holter': typeof HolterRoute
+  '/lung-function': typeof LungFunctionRoute
+  '/outsource': typeof OutsourceRoute
+  '/rheumatology': typeof RheumatologyRoute
   '/stress-test': typeof StressTestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-facilities': typeof AdminFacilitiesRoute
+  '/blood-pressure': typeof BloodPressureRoute
   '/echo': typeof EchoRoute
   '/holter': typeof HolterRoute
+  '/lung-function': typeof LungFunctionRoute
+  '/outsource': typeof OutsourceRoute
+  '/rheumatology': typeof RheumatologyRoute
   '/stress-test': typeof StressTestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin-facilities': typeof AdminFacilitiesRoute
+  '/blood-pressure': typeof BloodPressureRoute
   '/echo': typeof EchoRoute
   '/holter': typeof HolterRoute
+  '/lung-function': typeof LungFunctionRoute
+  '/outsource': typeof OutsourceRoute
+  '/rheumatology': typeof RheumatologyRoute
   '/stress-test': typeof StressTestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/echo' | '/holter' | '/stress-test'
+  fullPaths:
+    | '/'
+    | '/admin-facilities'
+    | '/blood-pressure'
+    | '/echo'
+    | '/holter'
+    | '/lung-function'
+    | '/outsource'
+    | '/rheumatology'
+    | '/stress-test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/echo' | '/holter' | '/stress-test'
-  id: '__root__' | '/' | '/echo' | '/holter' | '/stress-test'
+  to:
+    | '/'
+    | '/admin-facilities'
+    | '/blood-pressure'
+    | '/echo'
+    | '/holter'
+    | '/lung-function'
+    | '/outsource'
+    | '/rheumatology'
+    | '/stress-test'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin-facilities'
+    | '/blood-pressure'
+    | '/echo'
+    | '/holter'
+    | '/lung-function'
+    | '/outsource'
+    | '/rheumatology'
+    | '/stress-test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminFacilitiesRoute: typeof AdminFacilitiesRoute
+  BloodPressureRoute: typeof BloodPressureRoute
   EchoRoute: typeof EchoRoute
   HolterRoute: typeof HolterRoute
+  LungFunctionRoute: typeof LungFunctionRoute
+  OutsourceRoute: typeof OutsourceRoute
+  RheumatologyRoute: typeof RheumatologyRoute
   StressTestRoute: typeof StressTestRoute
 }
 
@@ -76,6 +154,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-facilities': {
+      id: '/admin-facilities'
+      path: '/admin-facilities'
+      fullPath: '/admin-facilities'
+      preLoaderRoute: typeof AdminFacilitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blood-pressure': {
+      id: '/blood-pressure'
+      path: '/blood-pressure'
+      fullPath: '/blood-pressure'
+      preLoaderRoute: typeof BloodPressureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/echo': {
@@ -92,6 +184,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HolterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lung-function': {
+      id: '/lung-function'
+      path: '/lung-function'
+      fullPath: '/lung-function'
+      preLoaderRoute: typeof LungFunctionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/outsource': {
+      id: '/outsource'
+      path: '/outsource'
+      fullPath: '/outsource'
+      preLoaderRoute: typeof OutsourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rheumatology': {
+      id: '/rheumatology'
+      path: '/rheumatology'
+      fullPath: '/rheumatology'
+      preLoaderRoute: typeof RheumatologyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stress-test': {
       id: '/stress-test'
       path: '/stress-test'
@@ -104,20 +217,15 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminFacilitiesRoute: AdminFacilitiesRoute,
+  BloodPressureRoute: BloodPressureRoute,
   EchoRoute: EchoRoute,
   HolterRoute: HolterRoute,
+  LungFunctionRoute: LungFunctionRoute,
+  OutsourceRoute: OutsourceRoute,
+  RheumatologyRoute: RheumatologyRoute,
   StressTestRoute: StressTestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

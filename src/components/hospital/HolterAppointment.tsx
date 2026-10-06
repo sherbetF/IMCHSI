@@ -51,10 +51,16 @@ export type TestResultFile = {
 export type HolterRequest = AppointmentRecord;
 
 export function HolterAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, facilityId } =
-    useFacility();
+  const {
+    selectedFacility,
+    setSelectedFacility,
+    isAdmin,
+    canManageScheduling,
+    setIsModalOpen,
+    facilityId,
+  } = useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
-    isAdmin ? "tracker" : "request",
+    canManageScheduling ? "tracker" : "request",
   );
   const [requests, setRequests] = useState<HolterRequest[]>([]);
   const [selectedFormReq, setSelectedFormReq] = useState<AppointmentRecord | null>(null);
@@ -128,21 +134,26 @@ export function HolterAppointment() {
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments("holter", facilityId, isAdmin, (data, status) => {
-      setRequests(data);
-      if (status) setSubStatus(status);
-      setLoading(false);
-    });
+    const unsub = subscribeToAppointments(
+      "holter",
+      facilityId,
+      canManageScheduling,
+      (data, status) => {
+        setRequests(data);
+        if (status) setSubStatus(status);
+        setLoading(false);
+      },
+    );
 
     return () => unsub();
-  }, [facilityId, isAdmin]);
+  }, [facilityId, canManageScheduling]);
 
-  // Switch to tracker tab automatically when in admin mode
+  // Switch to tracker tab automatically when in scheduling mode
   useEffect(() => {
-    if (isAdmin) {
+    if (canManageScheduling) {
       setActiveTab("tracker");
     }
-  }, [isAdmin]);
+  }, [canManageScheduling]);
 
   // Auto-dismiss submitted reference banner after 1 minute (60s), then gradually disappear
   useEffect(() => {
@@ -245,7 +256,7 @@ export function HolterAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "holter_appointments");
-      const q = isAdmin
+      const q = canManageScheduling
         ? query(colRef, where("mrn", "==", formData.mrn.trim()))
         : query(
             colRef,
@@ -333,7 +344,7 @@ export function HolterAppointment() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: AppointmentRecord["status"]) => {
-    if (!isAdmin) return;
+    if (!canManageScheduling) return;
     try {
       await updateAppointment("holter", id, { status: newStatus });
       toast.success(`Updated status to ${newStatus}`);
@@ -429,7 +440,7 @@ export function HolterAppointment() {
           </p>
         </div>
 
-        {!isAdmin && (
+        {!canManageScheduling && (
           <div className="flex gap-2 rounded-lg border border-border bg-surface p-1">
             <button
               onClick={() => setActiveTab("request")}
@@ -493,8 +504,8 @@ export function HolterAppointment() {
         </div>
       )}
 
-      {/* TAB 1: Booking Form (Only available for non-admin referring facilities) */}
-      {activeTab === "request" && !isAdmin && (
+      {/* TAB 1: Booking Form (Only available for non-privileged referring facilities) */}
+      {activeTab === "request" && !canManageScheduling && (
         <div className="mt-8 grid gap-8 lg:grid-cols-3">
           <form
             onSubmit={handleSubmit}
@@ -738,7 +749,7 @@ export function HolterAppointment() {
       )}
 
       {/* TAB 2: Tracker */}
-      {(activeTab === "tracker" || isAdmin) && (
+      {(activeTab === "tracker" || canManageScheduling) && (
         <div className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-background p-4">
             <div className="relative min-w-[260px] flex-1">
@@ -795,7 +806,7 @@ export function HolterAppointment() {
                       >
                         {r.urgency}
                       </span>
-                      {isAdmin && (
+                      {canManageScheduling && (
                         <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                           {r.facilityName}
                         </span>
@@ -831,7 +842,7 @@ export function HolterAppointment() {
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||
                         r.status === "Scheduled") &&
-                        !isAdmin && (
+                        !canManageScheduling && (
                           <button
                             type="button"
                             onClick={() => setSelectedFormReq(r)}
@@ -843,8 +854,8 @@ export function HolterAppointment() {
                           </button>
                         )}
 
-                      {/* Admin-only Controls: Schedule & Upload Result */}
-                      {isAdmin && r.status !== "Rejected" && (
+                      {/* Privileged Controls: Schedule & Upload Result */}
+                      {canManageScheduling && r.status !== "Rejected" && (
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
@@ -879,19 +890,21 @@ export function HolterAppointment() {
                               : "Schedule"}
                           </button>
 
-                          <button
-                            onClick={() => {
-                              setUploadingReq(r);
-                              setResultFileName(
-                                r.resultFile?.fileName ||
-                                  `Holter_Result_${r.patientName.replace(/\s+/g, "_")}.pdf`,
-                              );
-                              setResultSummaryNotes(r.resultFile?.summaryNotes || "");
-                            }}
-                            className="rounded-lg border border-emerald-600/40 bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
-                          >
-                            {r.resultFile ? "Edit Result" : "Upload Result"}
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => {
+                                setUploadingReq(r);
+                                setResultFileName(
+                                  r.resultFile?.fileName ||
+                                    `Holter_Result_${r.patientName.replace(/\s+/g, "_")}.pdf`,
+                                );
+                                setResultSummaryNotes(r.resultFile?.summaryNotes || "");
+                              }}
+                              className="rounded-lg border border-emerald-600/40 bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
+                            >
+                              {r.resultFile ? "Edit Result" : "Upload Result"}
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -912,7 +925,7 @@ export function HolterAppointment() {
                   {/* Expanded Detail View */}
                   {isExpanded && (
                     <div className="mt-2.5 rounded-lg border border-border bg-surface/80 p-3 text-xs space-y-2 animate-in fade-in duration-150 relative">
-                      {isAdmin && r.status !== "Rejected" && (
+                      {canManageScheduling && r.status !== "Rejected" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1000,7 +1013,7 @@ export function HolterAppointment() {
 
                       {((r.scheduledDate && r.scheduledDate !== "----------") ||
                         r.status === "Scheduled") &&
-                        !isAdmin && (
+                        !canManageScheduling && (
                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 bg-primary/5 -mx-3 -mb-3 p-3 rounded-b-lg">
                             <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
