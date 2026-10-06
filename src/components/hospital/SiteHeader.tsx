@@ -254,19 +254,6 @@ export function SiteHeader() {
                 );
               }
 
-              if (item.to === "/rheumatology") {
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    disabled
-                    className="text-sm font-medium text-muted-foreground/60 cursor-not-allowed select-none"
-                  >
-                    {item.label}
-                  </button>
-                );
-              }
-
               return (
                 <Link
                   key={item.to}
@@ -544,19 +531,6 @@ export function SiteHeader() {
                       }
                     }}
                     className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-foreground hover:bg-surface transition-colors cursor-pointer"
-                  >
-                    {item.label}
-                  </button>
-                );
-              }
-
-              if (item.to === "/rheumatology") {
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    disabled
-                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-muted-foreground/60 cursor-not-allowed select-none"
                   >
                     {item.label}
                   </button>
