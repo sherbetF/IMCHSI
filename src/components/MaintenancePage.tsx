@@ -14,7 +14,7 @@ const MaintenancePage: React.FC = () => {
         <h1 className="text-2xl font-bold text-slate-900 mb-2">System Maintenance</h1>
         <p className="text-slate-600 mb-0 leading-relaxed">
           We are currently performing scheduled maintenance to improve our services.
-          HospitalHub will be back online shortly.
+          It will be back online shortly.
         </p>
       </div>
     </div>
