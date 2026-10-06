@@ -4,6 +4,7 @@ import { auth, db } from "@/lib/firebase";
 import {
   onAuthStateChanged,
   signOut,
+  signInWithEmailAndPassword,
   setPersistence,
   browserSessionPersistence,
   User,
@@ -11,22 +12,17 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 
 export interface SelectedFacility {
+  facilityId: string;
   category: FacilityCategory | "Hospital Sultan Ismail Admin";
   name: string;
 }
 
 export type ModalStep = "greeting" | "facility" | "admin";
 
-export function getFacilityId(facilityName: string): string {
-  return facilityName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
+export const OUTSOURCE_AUTH_EMAIL = "outsource@auth.local";
 
-export function getFacilityAuthEmail(facilityId: string, resetCount: number = 0) {
-  const prefix = resetCount > 0 ? `_r${resetCount}` : "";
-  return `facility_${facilityId.toLowerCase()}${prefix}@auth.local`;
+export function getFacilityAuthEmail(facilityId: string): string {
+  return `facility_${facilityId.toLowerCase()}@auth.local`;
 }
 
 interface FacilityContextType {
@@ -39,20 +35,18 @@ interface FacilityContextType {
   setModalStep: (step: ModalStep) => void;
   openModal: (step?: ModalStep, onFacilitySelected?: () => void) => void;
   closeModal: () => void;
-  // Outsource Access Protection
+  // Outsource Access Protection (Server-Authoritative)
   isOutsourceAuthenticated: boolean;
   isOutsourceAuthOpen: boolean;
   openOutsourceAuth: (onSuccessCallback?: () => void) => void;
   closeOutsourceAuth: () => void;
-  verifyOutsourcePassword: (password: string) => boolean;
-  lockOutsource: () => void;
+  loginOutsource: (password: string) => Promise<{ success: boolean; error?: string }>;
+  logoutOutsource: () => Promise<void>;
   // Firebase Auth variables
   currentUser: User | null;
-  userRole: "admin" | "facility" | null;
+  userRole: "admin" | "facility" | "outsource" | null;
   facilityId: string | null;
 }
-
-const OUTSOURCE_AUTH_KEY = "hsi_outsource_auth_v1";
 
 const FacilityContext = createContext<FacilityContextType | undefined>(undefined);
 
@@ -68,67 +62,111 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Firebase Auth states
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<"admin" | "facility" | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "facility" | "outsource" | null>(null);
   const [facilityId, setFacilityId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
-
-    try {
-      const outsourceAuthSaved = sessionStorage.getItem(OUTSOURCE_AUTH_KEY);
-      if (outsourceAuthSaved === "true") {
-        setIsOutsourceAuthenticated(true);
-      }
-    } catch {
-      // ignore
-    }
 
     // Enforce Firebase Auth session-only persistence (browserSessionPersistence)
     setPersistence(auth, browserSessionPersistence).catch((err) => {
       console.warn("Could not set browserSessionPersistence in FacilityContext:", err);
     });
 
-    // Set up Firebase Auth state listener
+    // Set up Firebase Auth state listener (Single Source of Truth)
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user);
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
 
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            if (userData.active === true) {
-              setUserRole(userData.role);
-              if (userData.role === "admin") {
-                setFacilityId(null);
-                setSelectedFacilityState({
-                  category: "Hospital Sultan Ismail Admin",
-                  name: "Hospital Sultan Ismail (Admin Mode)",
-                });
-              } else if (userData.role === "facility") {
-                setFacilityId(userData.facilityId);
-                setSelectedFacilityState({
-                  category: userData.category || "Klinik Kesihatan",
-                  name: userData.facilityName,
-                });
-              }
-            } else {
+          if (!userDocSnap.exists()) {
+            // FAIL CLOSED: Account exists in Firebase Auth but has no trusted authorization profile
+            await signOut(auth);
+            setCurrentUser(null);
+            setUserRole(null);
+            setFacilityId(null);
+            setSelectedFacilityState(null);
+            setIsOutsourceAuthenticated(false);
+            return;
+          }
+
+          const userData = userDocSnap.data();
+          if (userData.active !== true) {
+            // FAIL CLOSED: Account is disabled
+            await signOut(auth);
+            setCurrentUser(null);
+            setUserRole(null);
+            setFacilityId(null);
+            setSelectedFacilityState(null);
+            setIsOutsourceAuthenticated(false);
+            return;
+          }
+
+          if (userData.role === "admin") {
+            setCurrentUser(user);
+            setUserRole("admin");
+            setFacilityId(null);
+            setSelectedFacilityState({
+              facilityId: "admin",
+              category: "Hospital Sultan Ismail Admin",
+              name: "Hospital Sultan Ismail (Admin Mode)",
+            });
+            setIsOutsourceAuthenticated(true);
+          } else if (userData.role === "facility") {
+            if (!userData.facilityId || typeof userData.facilityId !== "string") {
+              // FAIL CLOSED: Missing or invalid canonical facilityId
               await signOut(auth);
+              setCurrentUser(null);
+              setUserRole(null);
+              setFacilityId(null);
+              setSelectedFacilityState(null);
+              setIsOutsourceAuthenticated(false);
+              return;
             }
+            setCurrentUser(user);
+            setUserRole("facility");
+            setFacilityId(userData.facilityId);
+            setSelectedFacilityState({
+              facilityId: userData.facilityId,
+              category: userData.category || "Klinik Kesihatan",
+              name: userData.facilityName || userData.facilityId,
+            });
+            setIsOutsourceAuthenticated(false);
+          } else if (userData.role === "outsource") {
+            setCurrentUser(user);
+            setUserRole("outsource");
+            setFacilityId("outsource");
+            setSelectedFacilityState({
+              facilityId: "outsource",
+              category: "Hospital",
+              name: "Outsource Radiology & Diagnostic Services",
+            });
+            setIsOutsourceAuthenticated(true);
           } else {
-            // Document does not exist yet (e.g. during registration)
-            // Let the setup flow finish writing the profile
-            console.log("User profile document not found yet.");
+            // FAIL CLOSED: Unknown role
+            await signOut(auth);
+            setCurrentUser(null);
+            setUserRole(null);
+            setFacilityId(null);
+            setSelectedFacilityState(null);
+            setIsOutsourceAuthenticated(false);
           }
         } catch (error) {
-          console.error("Error loading user profile on auth change:", error);
+          console.error("Error verifying user profile on auth change:", error);
+          await signOut(auth).catch(() => {});
+          setCurrentUser(null);
+          setUserRole(null);
+          setFacilityId(null);
+          setSelectedFacilityState(null);
+          setIsOutsourceAuthenticated(false);
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
         setFacilityId(null);
         setSelectedFacilityState(null);
+        setIsOutsourceAuthenticated(false);
       }
     });
 
@@ -144,6 +182,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       setSelectedFacilityState(null);
       setIsModalOpen(false);
+      setIsOutsourceAuthenticated(false);
     } else {
       setSelectedFacilityState(facility);
       setIsModalOpen(false);
@@ -183,35 +222,76 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setOnOutsourceSuccessCb(null);
   };
 
-  const verifyOutsourcePassword = (password: string): boolean => {
-    if (password.trim() === "kipling") {
-      setIsOutsourceAuthenticated(true);
-      try {
-        sessionStorage.setItem(OUTSOURCE_AUTH_KEY, "true");
-      } catch {
-        // ignore
+  const loginOutsource = async (
+    password: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+      const userCredential = await signInWithEmailAndPassword(auth, OUTSOURCE_AUTH_EMAIL, password);
+      const user = userCredential.user;
+
+      // Validate the user's trusted profile in users/{uid}
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        await signOut(auth);
+        return {
+          success: false,
+          error: "Invalid outsource credentials or account not provisioned.",
+        };
       }
+
+      const userData = userDocSnap.data();
+      if (userData.role !== "outsource" || userData.active !== true) {
+        await signOut(auth);
+        return {
+          success: false,
+          error: "Unauthorized access: Account is not an active outsource account.",
+        };
+      }
+
+      setUserRole("outsource");
+      setIsOutsourceAuthenticated(true);
+      setSelectedFacilityState({
+        facilityId: "outsource",
+        category: "Hospital",
+        name: "Outsource Radiology & Diagnostic Services",
+      });
       setIsOutsourceAuthOpen(false);
       if (onOutsourceSuccessCb) {
         onOutsourceSuccessCb();
         setOnOutsourceSuccessCb(null);
       }
-      return true;
+      return { success: true };
+    } catch (err: unknown) {
+      const authErr = err as { code?: string; message?: string };
+      console.error("Outsource authentication error:", authErr.code);
+      let errorMsg = "Invalid outsource credentials or account not provisioned.";
+      if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential") {
+        errorMsg =
+          "Outsource account not provisioned in Firebase Auth. Please run `node scripts/provision-outsource.js` in your backend environment.";
+      }
+      return {
+        success: false,
+        error: errorMsg,
+      };
     }
-    return false;
   };
 
-  const lockOutsource = () => {
-    setIsOutsourceAuthenticated(false);
+  const logoutOutsource = async () => {
     try {
-      sessionStorage.removeItem(OUTSOURCE_AUTH_KEY);
-    } catch {
-      // ignore
+      await signOut(auth);
+    } catch (err) {
+      console.error("Outsource sign out failed:", err);
     }
+    setIsOutsourceAuthenticated(false);
+    setUserRole(null);
+    setCurrentUser(null);
+    setSelectedFacilityState(null);
   };
 
-  const isAdmin =
-    userRole === "admin" || selectedFacility?.category === "Hospital Sultan Ismail Admin";
+  const isAdmin = userRole === "admin" && currentUser !== null;
 
   return (
     <FacilityContext.Provider
@@ -229,8 +309,8 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isOutsourceAuthOpen,
         openOutsourceAuth,
         closeOutsourceAuth,
-        verifyOutsourcePassword,
-        lockOutsource,
+        loginOutsource,
+        logoutOutsource,
         currentUser,
         userRole,
         facilityId,
@@ -255,8 +335,8 @@ const defaultFacilityContext: FacilityContextType = {
   isOutsourceAuthOpen: false,
   openOutsourceAuth: () => {},
   closeOutsourceAuth: () => {},
-  verifyOutsourcePassword: () => false,
-  lockOutsource: () => {},
+  loginOutsource: async () => ({ success: false }),
+  logoutOutsource: async () => {},
   currentUser: null,
   userRole: null,
   facilityId: null,

@@ -20,13 +20,13 @@ import {
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
 import { useFacility } from "@/context/FacilityContext";
+import { OutsourceLoginModal } from "./OutsourceLoginModal";
 import {
   subscribeToAllPendingNotifications,
   getReadNotificationIds,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   UnifiedRequestNotification,
-  seedInitialDataIfEmpty,
 } from "@/services/firebaseAppointments";
 
 const nav = [
@@ -57,6 +57,7 @@ export function SiteHeader() {
     isOutsourceAuthenticated,
     openOutsourceAuth,
     currentUser,
+    facilityId,
   } = useFacility();
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -67,20 +68,17 @@ export function SiteHeader() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : null);
+
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser && !selectedFacility) {
       setNotifications([]);
       return;
     }
-    seedInitialDataIfEmpty();
-    const unsub = subscribeToAllPendingNotifications(
-      selectedFacility?.name || null,
-      isAdmin,
-      (notifs) => {
-        setNotifications(notifs);
-        setReadIds(getReadNotificationIds());
-      },
-    );
+    const unsub = subscribeToAllPendingNotifications(activeFacilityId, isAdmin, (notifs) => {
+      setNotifications(notifs);
+      setReadIds(getReadNotificationIds());
+    });
 
     const handleUpdate = () => {
       setReadIds(getReadNotificationIds());
@@ -90,7 +88,7 @@ export function SiteHeader() {
       unsub();
       window.removeEventListener("hsi_requests_updated", handleUpdate);
     };
-  }, [currentUser, selectedFacility?.name, isAdmin]);
+  }, [currentUser, facilityId, selectedFacility, activeFacilityId, isAdmin]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -232,8 +230,14 @@ export function SiteHeader() {
                   <button
                     key={item.label}
                     type="button"
-                    disabled
-                    className="text-sm font-medium text-muted-foreground/60 cursor-not-allowed select-none"
+                    onClick={() => {
+                      if (!isOutsourceAuthenticated && !isAdmin) {
+                        openOutsourceAuth(() => navigate({ to: "/outsource" }));
+                      } else {
+                        navigate({ to: "/outsource" });
+                      }
+                    }}
+                    className="text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer"
                   >
                     {item.label}
                   </button>
@@ -508,8 +512,15 @@ export function SiteHeader() {
                   <button
                     key={item.label}
                     type="button"
-                    disabled
-                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-muted-foreground/60 cursor-not-allowed select-none"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      if (!isOutsourceAuthenticated && !isAdmin) {
+                        openOutsourceAuth(() => navigate({ to: "/outsource" }));
+                      } else {
+                        navigate({ to: "/outsource" });
+                      }
+                    }}
+                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-foreground hover:bg-surface transition-colors cursor-pointer"
                   >
                     {item.label}
                   </button>
@@ -648,6 +659,9 @@ export function SiteHeader() {
           </div>
         </div>
       )}
+
+      {/* Outsource Provider Authentication Dialog */}
+      <OutsourceLoginModal />
     </header>
   );
 }

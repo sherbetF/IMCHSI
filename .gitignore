@@ -30,3 +30,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Service accounts and credentials
+service-account*.json
+*.service-account.json
+*credentials*.json
+*.pem
+*.key
+.env
+.env.local
+.env.*.local

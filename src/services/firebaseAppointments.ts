@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   setDoc,
-  getDocs,
   onSnapshot,
   query,
   where,
@@ -21,20 +20,12 @@ function getFirebaseAuth() {
     return null;
   }
 }
-import {
-  defaultEchoRequests,
-  defaultStressRequests,
-  defaultHolterRequests,
-  defaultBPRequests,
-  defaultLungFunctionRequests,
-  defaultOutsourceRequests,
-  defaultRheumatologyRequests,
-} from "@/utils/appointmentStore";
 import { parseDateToTimestamp } from "@/utils/dateUtils";
 
 export interface UnifiedRequestNotification {
   id: string;
   rawId: string;
+  facilityId?: string;
   patientName: string;
   mrn: string;
   testType:
@@ -103,6 +94,7 @@ export function markAllNotificationsAsRead(ids: string[]): void {
 
 export interface AppointmentRecord {
   id: string;
+  facilityId: string;
   facilityName: string;
   facilityCategory: string;
   patientName: string;
@@ -127,9 +119,13 @@ export interface AppointmentRecord {
   rejectReason?: string;
   rejectedBy?: string;
   resultFile?: {
+    storagePath?: string;
     fileName: string;
+    contentType?: string;
+    fileSize?: number;
     uploadedAt: string;
-    summaryNotes: string;
+    summaryNotes?: string;
+    dataUrl?: string; // Legacy fallback
   };
   [key: string]: unknown;
 }
@@ -142,83 +138,24 @@ const LFT_COLLECTION = "lung_function_appointments";
 const OUTSOURCE_COLLECTION = "outsource_appointments";
 const RHEUMATOLOGY_COLLECTION = "rheumatology_appointments";
 
-// Initialize and seed default records to Firestore if empty
-let isSeeded = false;
-export async function seedInitialDataIfEmpty() {
-  if (isSeeded) return;
-  // According to Firebase guidelines, do not attempt to read or seed protected collections while unauthenticated
-  const currentAuth = getFirebaseAuth();
-  if (!currentAuth?.currentUser) return;
-  isSeeded = true;
-  try {
-    const echoSnap = await getDocs(collection(db, ECHO_COLLECTION));
-    if (echoSnap.empty) {
-      for (const item of defaultEchoRequests) {
-        await setDoc(doc(db, ECHO_COLLECTION, item.id), item);
-      }
-    }
-
-    const stressSnap = await getDocs(collection(db, STRESS_COLLECTION));
-    if (stressSnap.empty) {
-      for (const item of defaultStressRequests) {
-        await setDoc(doc(db, STRESS_COLLECTION, item.id), item);
-      }
-    }
-
-    const holterSnap = await getDocs(collection(db, HOLTER_COLLECTION));
-    if (holterSnap.empty) {
-      for (const item of defaultHolterRequests) {
-        await setDoc(doc(db, HOLTER_COLLECTION, item.id), item);
-      }
-    }
-
-    const bpSnap = await getDocs(collection(db, BP_COLLECTION));
-    if (bpSnap.empty) {
-      for (const item of defaultBPRequests) {
-        await setDoc(doc(db, BP_COLLECTION, item.id), item);
-      }
-    }
-
-    const lftSnap = await getDocs(collection(db, LFT_COLLECTION));
-    if (lftSnap.empty) {
-      for (const item of defaultLungFunctionRequests) {
-        await setDoc(doc(db, LFT_COLLECTION, item.id), item);
-      }
-    }
-
-    const outsourceSnap = await getDocs(collection(db, OUTSOURCE_COLLECTION));
-    if (outsourceSnap.empty) {
-      for (const item of defaultOutsourceRequests) {
-        await setDoc(doc(db, OUTSOURCE_COLLECTION, item.id), item);
-      }
-    }
-
-    const rheumSnap = await getDocs(collection(db, RHEUMATOLOGY_COLLECTION));
-    if (rheumSnap.empty) {
-      for (const item of defaultRheumatologyRequests) {
-        await setDoc(doc(db, RHEUMATOLOGY_COLLECTION, item.id), item);
-      }
-    }
-  } catch (err) {
-    console.warn("Firestore seed note:", err);
-  }
-}
-
 // -------------------------------------------------------------
 // Real-time Subscriptions with Facility Isolation & Admin Bypass
 // -------------------------------------------------------------
 
+export type SubscriptionStatus =
+  "loading" | "success" | "empty" | "authenticationRequired" | "permissionDenied" | "error";
+
 export function subscribeToAppointments(
   collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
-  facilityName: string | null,
+  facilityId: string | null,
   isAdmin: boolean,
-  callback: (data: AppointmentRecord[]) => void,
+  callback: (data: AppointmentRecord[], status?: SubscriptionStatus) => void,
 ): Unsubscribe {
   // CRITICAL Firebase Integration Guideline:
   // Only attach onSnapshot listeners if auth is ready and user is authenticated.
   const currentAuth = getFirebaseAuth();
   if (!currentAuth?.currentUser) {
-    callback([]);
+    callback([], "authenticationRequired");
     return () => {};
   }
 
@@ -242,12 +179,12 @@ export function subscribeToAppointments(
   let q;
   if (isAdmin) {
     q = query(colRef);
-  } else if (facilityName) {
-    q = query(colRef, where("facilityName", "==", facilityName));
+  } else if (facilityId) {
+    q = query(colRef, where("facilityId", "==", facilityId));
   } else {
     // Non-admin without selected facility context loaded yet:
-    // Do not run an unfiltered query. Pass empty array.
-    callback([]);
+    // Do not run an unfiltered query. Pass empty array and loading status.
+    callback([], "loading");
     return () => {};
   }
 
@@ -260,15 +197,20 @@ export function subscribeToAppointments(
       });
       // Sort newest first
       records.sort((a, b) => parseDateToTimestamp(b.createdAt) - parseDateToTimestamp(a.createdAt));
-      callback(records);
+      const status: SubscriptionStatus = records.length === 0 ? "empty" : "success";
+      callback(records, status);
     },
     (error) => {
+      let status: SubscriptionStatus = "error";
+      if (error.code === "permission-denied") {
+        status = "permissionDenied";
+      }
       try {
         handleFirestoreError(error, OperationType.GET, colName);
       } catch (err) {
         console.warn(`Firestore subscription note for ${colName}:`, err);
       }
-      callback([]);
+      callback([], status);
     },
   );
 
@@ -298,8 +240,13 @@ export async function createAppointment(
                 ? RHEUMATOLOGY_COLLECTION
                 : OUTSOURCE_COLLECTION;
 
+  const docData: AppointmentRecord = {
+    ...appointment,
+    facilityId: appointment.facilityId,
+  };
+
   try {
-    await setDoc(doc(db, colName, appointment.id), appointment);
+    await setDoc(doc(db, colName, appointment.id), docData);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `${colName}/${appointment.id}`);
   }
@@ -334,24 +281,24 @@ export async function updateAppointment(
 
 // Global notification listener for admin/facility
 export function subscribeToAllPendingNotifications(
-  facilityNameOrCallback: string | null | ((notifications: UnifiedRequestNotification[]) => void),
+  facilityIdOrCallback: string | null | ((notifications: UnifiedRequestNotification[]) => void),
   isAdminOrCallback?: boolean | ((notifications: UnifiedRequestNotification[]) => void),
   callbackArg?: (notifications: UnifiedRequestNotification[]) => void,
 ) {
-  let facilityName: string | null = null;
+  let facilityId: string | null = null;
   let isAdmin = true;
   let callback: (notifications: UnifiedRequestNotification[]) => void;
 
-  if (typeof facilityNameOrCallback === "function") {
-    callback = facilityNameOrCallback;
-    facilityName = null;
+  if (typeof facilityIdOrCallback === "function") {
+    callback = facilityIdOrCallback;
+    facilityId = null;
     isAdmin = true;
   } else if (typeof isAdminOrCallback === "function") {
-    facilityName = facilityNameOrCallback;
+    facilityId = facilityIdOrCallback;
     isAdmin = true;
     callback = isAdminOrCallback;
   } else {
-    facilityName = facilityNameOrCallback;
+    facilityId = facilityIdOrCallback;
     isAdmin = !!isAdminOrCallback;
     callback = callbackArg || (() => {});
   }
@@ -502,45 +449,40 @@ export function subscribeToAllPendingNotifications(
     callback(notifs);
   };
 
-  const unsubEcho = subscribeToAppointments("echo", facilityName, isAdmin, (data) => {
+  const unsubEcho = subscribeToAppointments("echo", facilityId, isAdmin, (data) => {
     echoItems = data;
     updateAll();
   });
 
-  const unsubStress = subscribeToAppointments("stress", facilityName, isAdmin, (data) => {
+  const unsubStress = subscribeToAppointments("stress", facilityId, isAdmin, (data) => {
     stressItems = data;
     updateAll();
   });
 
-  const unsubHolter = subscribeToAppointments("holter", facilityName, isAdmin, (data) => {
+  const unsubHolter = subscribeToAppointments("holter", facilityId, isAdmin, (data) => {
     holterItems = data;
     updateAll();
   });
 
-  const unsubBP = subscribeToAppointments("bp", facilityName, isAdmin, (data) => {
+  const unsubBP = subscribeToAppointments("bp", facilityId, isAdmin, (data) => {
     bpItems = data;
     updateAll();
   });
 
-  const unsubLFT = subscribeToAppointments("lft", facilityName, isAdmin, (data) => {
+  const unsubLFT = subscribeToAppointments("lft", facilityId, isAdmin, (data) => {
     lftItems = data;
     updateAll();
   });
 
-  const unsubOutsource = subscribeToAppointments("outsource", facilityName, isAdmin, (data) => {
+  const unsubOutsource = subscribeToAppointments("outsource", facilityId, isAdmin, (data) => {
     outsourceItems = data;
     updateAll();
   });
 
-  const unsubRheumatology = subscribeToAppointments(
-    "rheumatology",
-    facilityName,
-    isAdmin,
-    (data) => {
-      rheumatologyItems = data;
-      updateAll();
-    },
-  );
+  const unsubRheumatology = subscribeToAppointments("rheumatology", facilityId, isAdmin, (data) => {
+    rheumatologyItems = data;
+    updateAll();
+  });
 
   return () => {
     unsubEcho();

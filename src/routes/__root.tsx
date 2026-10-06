@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { FacilityProvider } from "@/context/FacilityContext";
 import { FacilitySelectModal } from "@/components/hospital/FacilitySelectModal";
-import { OutsourceAuthModal } from "@/components/hospital/OutsourceAuthModal";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -81,7 +80,6 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <FacilityProvider>
         <FacilitySelectModal />
-        <OutsourceAuthModal />
         <Outlet />
         <Toaster />
       </FacilityProvider>

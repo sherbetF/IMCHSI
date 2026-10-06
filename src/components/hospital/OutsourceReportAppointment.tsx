@@ -47,6 +47,7 @@ import {
 } from "@/utils/dateUtils";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { uploadReportFile, deleteReportFile } from "@/services/reportStorage";
 
 export type OutsourceReport = AppointmentRecord;
 
@@ -146,7 +147,8 @@ const COMMON_REPORT_TYPES: Record<string, string[]> = {
 };
 
 export function OutsourceReportAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
+  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, facilityId } =
+    useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
     isAdmin ? "tracker" : "request",
   );
@@ -159,7 +161,6 @@ export function OutsourceReportAppointment() {
   // File Upload state
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileDataUrl, setFileDataUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Admin rejection / review modal state
@@ -210,22 +211,20 @@ export function OutsourceReportAppointment() {
   // Form preview modal state
   const [selectedFormReq, setSelectedFormReq] = useState<OutsourceReport | null>(null);
 
+  const [subStatus, setSubStatus] = useState<string>("loading");
+
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments(
-      "outsource",
-      selectedFacility ? selectedFacility.name : null,
-      isAdmin,
-      (data) => {
-        setRequests(data);
-        setLoading(false);
-      },
-    );
+    const unsub = subscribeToAppointments("outsource", facilityId, isAdmin, (data, status) => {
+      setRequests(data);
+      if (status) setSubStatus(status);
+      setLoading(false);
+    });
 
     return () => unsub();
-  }, [selectedFacility?.name, isAdmin]);
+  }, [facilityId, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
@@ -280,28 +279,23 @@ export function OutsourceReportAppointment() {
   };
 
   const processFile = (file: File) => {
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("File is too large. Maximum size is 15MB.");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("File is too large. Maximum size is 20MB.");
+      return;
+    }
+
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (file.type && !allowedTypes.includes(file.type)) {
+      toast.error("Invalid file format. Please attach a PDF or image (PNG/JPEG).");
       return;
     }
 
     setSelectedFile(file);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setFileDataUrl(result);
-      toast.success(`Attached file: ${file.name}`);
-    };
-    reader.onerror = () => {
-      toast.error("Failed to read file.");
-    };
-    reader.readAsDataURL(file);
+    toast.success(`Attached file: ${file.name}`);
   };
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
-    setFileDataUrl("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -353,8 +347,11 @@ export function OutsourceReportAppointment() {
     const deptName = formData.department.trim();
     const combinedRef = docName ? `${docName} (${deptName})` : deptName;
 
+    const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
+
     const newReq: OutsourceReport = {
       id: `OUT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
       patientName: formData.patientName.trim(),
@@ -374,13 +371,12 @@ export function OutsourceReportAppointment() {
       diagnosis: formData.diagnosis.trim() || formData.findingsSummary.trim(),
       status: "Verified",
       createdAt: getLocalDateTimeString(),
-      ...(selectedFile && fileDataUrl
+      ...(selectedFile
         ? {
             attachedReport: {
               fileName: selectedFile.name,
               fileSize: selectedFile.size,
-              fileType: selectedFile.type || "application/octet-stream",
-              fileData: fileDataUrl,
+              fileType: selectedFile.type || "application/pdf",
               uploadedAt: getLocalDateTimeString(),
             },
           }
@@ -390,7 +386,13 @@ export function OutsourceReportAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "outsource_reports");
-      const q = query(colRef, where("mrn", "==", formData.mrn.trim()));
+      const q = isAdmin
+        ? query(colRef, where("mrn", "==", formData.mrn.trim()))
+        : query(
+            colRef,
+            where("facilityId", "==", activeFacilityId),
+            where("mrn", "==", formData.mrn.trim()),
+          );
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
@@ -440,9 +442,36 @@ export function OutsourceReportAppointment() {
   const handleConfirmSubmit = async () => {
     if (!pendingReq) return;
     setIsSubmitting(true);
+    let uploadedStoragePath: string | null = null;
     try {
-      await createAppointment("outsource", pendingReq);
-      setSubmittedRef(pendingReq);
+      let finalReq = { ...pendingReq };
+
+      // Upload file to Firebase Storage if selected
+      if (selectedFile) {
+        const uploadMeta = await uploadReportFile(
+          selectedFile,
+          pendingReq.facilityId,
+          pendingReq.id,
+          true,
+          `Report file attached (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
+        );
+        uploadedStoragePath = uploadMeta.storagePath;
+
+        finalReq = {
+          ...finalReq,
+          resultFile: uploadMeta,
+          attachedReport: {
+            storagePath: uploadMeta.storagePath,
+            fileName: uploadMeta.fileName,
+            fileSize: uploadMeta.fileSize,
+            fileType: uploadMeta.contentType,
+            uploadedAt: uploadMeta.uploadedAt,
+          },
+        };
+      }
+
+      await createAppointment("outsource", finalReq);
+      setSubmittedRef(finalReq);
 
       // Reset Form
       setFormData({
@@ -464,7 +493,6 @@ export function OutsourceReportAppointment() {
         diagnosis: "",
       });
       setSelectedFile(null);
-      setFileDataUrl("");
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setShowNoticeModal(false);
@@ -472,6 +500,9 @@ export function OutsourceReportAppointment() {
       toast.success("Outsource Radiology Report successfully saved to Firebase database!");
     } catch (err) {
       console.error("Failed to create outsource report in Firebase:", err);
+      if (uploadedStoragePath) {
+        await deleteReportFile(uploadedStoragePath).catch(() => {});
+      }
       toast.error("Failed to save report to database.");
     } finally {
       setIsSubmitting(false);
@@ -776,7 +807,7 @@ export function OutsourceReportAppointment() {
                           onChange={(e) =>
                             setFormData({ ...formData, mrn: e.target.value.toUpperCase() })
                           }
-                          placeholder="e.g. 850412015567 or ID-884920"
+                          placeholder="e.g. MRN or ID-0000"
                           className={`w-full rounded-xl border p-3 text-xs font-semibold outline-none transition-all placeholder:text-muted-foreground/60 ${
                             formErrors.mrn
                               ? "border-destructive focus:border-destructive bg-destructive/5"
@@ -1316,15 +1347,19 @@ export function OutsourceReportAppointment() {
                     ) : filteredRequests.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
-                          <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="flex flex-col items-center justify-center gap-2 max-w-md mx-auto">
                             <Database className="h-8 w-8 text-muted-foreground/50" />
                             <p className="font-semibold text-foreground">
                               No Outsource Reports Found
                             </p>
-                            <p className="text-xs">
-                              {searchQuery
-                                ? "No records match your search criteria."
-                                : "Upload or add your first outsource radiology report."}
+                            <p className="text-xs leading-relaxed">
+                              {subStatus === "authenticationRequired"
+                                ? "Historical request tracking requires authenticated facility access. Please sign in with your facility account to view appointment records."
+                                : subStatus === "permissionDenied"
+                                  ? "Permission denied: Protected facility data requires authorized access."
+                                  : searchQuery
+                                    ? "No records match your search criteria."
+                                    : "Upload or add your first outsource radiology report."}
                             </p>
                           </div>
                         </td>
@@ -1405,7 +1440,10 @@ export function OutsourceReportAppointment() {
 
                           {/* 6. Attached Report File */}
                           <td className="px-5 py-4">
-                            {req.attachedReport?.fileData ? (
+                            {req.resultFile?.storagePath ||
+                            req.attachedReport?.storagePath ||
+                            req.attachedReport?.fileData ||
+                            req.resultFile?.dataUrl ? (
                               <button
                                 type="button"
                                 onClick={() => setSelectedFormReq(req)}

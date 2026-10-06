@@ -16,20 +16,18 @@
     },
     "facilities": {
       "title": "Facilities Registry",
-      "description": "Metadata and first-time login config for primary care health clinics",
+      "description": "Metadata for primary care health clinics",
       "type": "object",
       "properties": {
         "facilityId": { "type": "string" },
         "facilityName": { "type": "string" },
         "category": { "type": "string" },
         "status": { "type": "string", "enum": ["Active", "Disabled"] },
-        "isFirstTime": { "type": "boolean" },
-        "resetCount": { "type": "number" },
         "uid": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["facilityId", "facilityName", "status", "isFirstTime"]
+      "required": ["facilityId", "facilityName", "status"]
     },
     "admin_config": {
       "title": "Admin Configuration",

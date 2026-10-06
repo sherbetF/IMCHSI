@@ -124,8 +124,14 @@ export function openReportFormInNewTab(req: AppointmentRecord): void {
   const htmlContent = generateEchoFormHTML(req);
   const newTab = window.open("", "_blank");
   if (newTab) {
+    try {
+      newTab.opener = null;
+    } catch {
+      // ignore
+    }
     newTab.document.write(htmlContent);
     newTab.document.close();
+    newTab.focus();
   }
 }
 

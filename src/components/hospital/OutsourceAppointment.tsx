@@ -20,6 +20,8 @@ import {
   Paperclip,
   Trash2,
   ExternalLink,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
@@ -40,6 +42,7 @@ import {
 } from "@/utils/dateUtils";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { uploadReportFile, viewReportFile, deleteReportFile } from "@/services/reportStorage";
 
 export type OutsourceReport = AppointmentRecord;
 
@@ -109,7 +112,15 @@ const PRIVATE_HOSPITALS = [
 ];
 
 export function OutsourceAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
+  const {
+    selectedFacility,
+    setSelectedFacility,
+    isAdmin,
+    setIsModalOpen,
+    isOutsourceAuthenticated,
+    openOutsourceAuth,
+    facilityId,
+  } = useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">("tracker");
   const [requests, setRequests] = useState<OutsourceReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +146,6 @@ export function OutsourceAppointment() {
 
   // Drag & drop file attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileDataUrl, setFileDataUrl] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -173,22 +183,20 @@ export function OutsourceAppointment() {
   // Form preview modal state
   const [selectedFormReq, setSelectedFormReq] = useState<OutsourceReport | null>(null);
 
+  const [subStatus, setSubStatus] = useState<string>("loading");
+
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments(
-      "outsource",
-      selectedFacility ? selectedFacility.name : null,
-      isAdmin,
-      (data) => {
-        setRequests(data);
-        setLoading(false);
-      },
-    );
+    const unsub = subscribeToAppointments("outsource", facilityId, isAdmin, (data, status) => {
+      setRequests(data);
+      if (status) setSubStatus(status);
+      setLoading(false);
+    });
 
     return () => unsub();
-  }, [selectedFacility?.name, isAdmin]);
+  }, [facilityId, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
@@ -229,6 +237,15 @@ export function OutsourceAppointment() {
   };
 
   const processFile = async (file: File) => {
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("File is too large. Maximum size is 20MB.");
+      return;
+    }
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (file.type && !allowedTypes.includes(file.type)) {
+      toast.error("Invalid file format. Please attach a PDF or image (PNG/JPEG).");
+      return;
+    }
     setSelectedFile(file);
     setFormErrors((prev) => {
       if (!prev.selectedFile) return prev;
@@ -236,15 +253,7 @@ export function OutsourceAppointment() {
       delete updated.selectedFile;
       return updated;
     });
-    try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFileDataUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error("Failed to read file", err);
-    }
+    toast.success(`Attached file: ${file.name}`);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -297,8 +306,11 @@ export function OutsourceAppointment() {
         ? formData.customProcedure.trim() || "Outsource Diagnostic Report"
         : formData.procedureType;
 
+    const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
+
     const newReq: OutsourceReport = {
       id: generateReportId(effectiveProcedure, effectiveHospital),
+      facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
       patientName: formData.patientName.trim(),
@@ -318,9 +330,10 @@ export function OutsourceAppointment() {
         ? {
             resultFile: {
               fileName: selectedFile.name,
+              fileSize: selectedFile.size,
+              contentType: selectedFile.type || "application/pdf",
               uploadedAt: getLocalDateTimeString(),
               summaryNotes: `Report file attached (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
-              dataUrl: fileDataUrl,
             },
           }
         : {}),
@@ -329,7 +342,13 @@ export function OutsourceAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "outsource_appointments");
-      const q = query(colRef, where("mrn", "==", formData.mrn.trim()));
+      const q = isAdmin
+        ? query(colRef, where("mrn", "==", formData.mrn.trim()))
+        : query(
+            colRef,
+            where("facilityId", "==", activeFacilityId),
+            where("mrn", "==", formData.mrn.trim()),
+          );
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
@@ -383,9 +402,28 @@ export function OutsourceAppointment() {
   const handleConfirmSubmit = async () => {
     if (!pendingReq) return;
     setIsSubmitting(true);
+    let uploadedStoragePath: string | null = null;
     try {
-      await createAppointment("outsource", pendingReq);
-      setSubmittedRef(pendingReq);
+      let finalReq = { ...pendingReq };
+
+      if (selectedFile) {
+        const uploadMeta = await uploadReportFile(
+          selectedFile,
+          pendingReq.facilityId,
+          pendingReq.id,
+          true,
+          `Report file attached (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
+        );
+        uploadedStoragePath = uploadMeta.storagePath;
+
+        finalReq = {
+          ...finalReq,
+          resultFile: uploadMeta,
+        };
+      }
+
+      await createAppointment("outsource", finalReq);
+      setSubmittedRef(finalReq);
 
       setFormData({
         patientName: "",
@@ -397,12 +435,14 @@ export function OutsourceAppointment() {
         customHospital: "",
       });
       setSelectedFile(null);
-      setFileDataUrl("");
       setShowNoticeModal(false);
       setPendingReq(null);
       setActiveTab("tracker");
     } catch (err) {
       console.error("Failed to create outsource record in Firebase:", err);
+      if (uploadedStoragePath) {
+        await deleteReportFile(uploadedStoragePath).catch(() => {});
+      }
       toast.error("Failed to submit record");
     } finally {
       setIsSubmitting(false);
@@ -483,6 +523,35 @@ export function OutsourceAppointment() {
     const matchesStatus = statusFilter === "All" || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  if (!isOutsourceAuthenticated && !isAdmin) {
+    return (
+      <section className="mx-auto max-w-[1200px] px-5 pt-16 pb-20 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center space-y-5 shadow-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto">
+            <Lock className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-heading">Outsource Authentication Required</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Access to the Outsource Radiology & Diagnostic database is restricted to authorized
+              external service providers and Hospital Sultan Ismail administrators.
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => openOutsourceAuth()}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Sign In as Outsource Provider</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto max-w-[1200px] px-5 pt-4 pb-10 min-h-[calc(100vh-200px)]">
@@ -591,7 +660,7 @@ export function OutsourceAppointment() {
                       type="text"
                       value={formData.patientName}
                       onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                      placeholder="e.g. Ahmad Razak bin Abdullah"
+                      placeholder="e.g. Patient Full Name"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     {formErrors.patientName && (
@@ -876,8 +945,14 @@ export function OutsourceAppointment() {
                 Loading outsource records...
               </div>
             ) : filteredRequests.length === 0 ? (
-              <div className="p-8 text-center text-sm font-semibold text-muted-foreground">
-                No outsource records found matching your filters.
+              <div className="p-8 text-center text-sm font-semibold text-muted-foreground space-y-2">
+                <p className="leading-relaxed">
+                  {subStatus === "authenticationRequired"
+                    ? "Historical request tracking requires authenticated facility access. Please sign in with your facility account to view appointment records."
+                    : subStatus === "permissionDenied"
+                      ? "Permission denied: Protected facility data requires authorized access."
+                      : "No outsource records found matching your filters."}
+                </p>
               </div>
             ) : (
               filteredRequests.map((r) => {
@@ -929,7 +1004,9 @@ export function OutsourceAppointment() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (r.resultFile?.dataUrl) {
+                            if (r.resultFile?.storagePath) {
+                              viewReportFile(r.resultFile.storagePath, r.resultFile.fileName);
+                            } else if (r.resultFile?.dataUrl) {
                               openPdfInNewTab(r.resultFile.dataUrl, r.resultFile.fileName);
                             } else {
                               openReportFormInNewTab(r);

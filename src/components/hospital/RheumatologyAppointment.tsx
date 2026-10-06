@@ -43,7 +43,8 @@ import { db } from "@/lib/firebase";
 export type AppointmentRequest = AppointmentRecord;
 
 export function RheumatologyAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
+  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, facilityId } =
+    useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
     isAdmin ? "tracker" : "request",
   );
@@ -101,22 +102,20 @@ export function RheumatologyAppointment() {
   // Form preview modal state
   const [selectedFormReq, setSelectedFormReq] = useState<AppointmentRecord | null>(null);
 
+  const [subStatus, setSubStatus] = useState<string>("loading");
+
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments(
-      "rheumatology",
-      selectedFacility ? selectedFacility.name : null,
-      isAdmin,
-      (data) => {
-        setRequests(data);
-        setLoading(false);
-      },
-    );
+    const unsub = subscribeToAppointments("rheumatology", facilityId, isAdmin, (data, status) => {
+      setRequests(data);
+      if (status) setSubStatus(status);
+      setLoading(false);
+    });
 
     return () => unsub();
-  }, [selectedFacility?.name, isAdmin]);
+  }, [facilityId, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
@@ -179,8 +178,11 @@ export function RheumatologyAppointment() {
     const deptName = formData.department.trim();
     const combinedRef = docName ? `${docName} (${deptName})` : deptName;
 
+    const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
+
     const newReq: AppointmentRequest = {
       id: `RHEUM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
       patientName: formData.patientName.trim(),
@@ -200,7 +202,13 @@ export function RheumatologyAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "rheumatology_appointments");
-      const q = query(colRef, where("mrn", "==", formData.mrn.trim()));
+      const q = isAdmin
+        ? query(colRef, where("mrn", "==", formData.mrn.trim()))
+        : query(
+            colRef,
+            where("facilityId", "==", activeFacilityId),
+            where("mrn", "==", formData.mrn.trim()),
+          );
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
@@ -440,7 +448,7 @@ export function RheumatologyAppointment() {
                       type="text"
                       value={formData.patientName}
                       onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                      placeholder="e.g. Ahmad Razak bin Abdullah"
+                      placeholder="e.g. Patient Full Name"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     {formErrors.patientName && (
@@ -845,8 +853,16 @@ export function RheumatologyAppointment() {
             })}
 
             {filteredRequests.length === 0 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                No appointment requests found matching your filters.
+              <div className="p-8 text-center text-sm text-muted-foreground space-y-2">
+                <p className="leading-relaxed">
+                  {subStatus === "authenticationRequired"
+                    ? "Historical request tracking requires authenticated facility access. Please sign in with your facility account to view appointment records."
+                    : subStatus === "permissionDenied"
+                      ? "Permission denied: Protected facility data requires authorized access."
+                      : loading
+                        ? "Loading rheumatology appointments from Firebase..."
+                        : "No appointment requests found matching your filters."}
+                </p>
               </div>
             )}
           </div>

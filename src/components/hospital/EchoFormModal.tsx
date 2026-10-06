@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X, FileText, Download, ExternalLink, FileCheck, Eye } from "lucide-react";
 import { AppointmentRecord } from "../../services/firebaseAppointments";
 import { downloadEchoPDFForm, generateEchoFormHTML } from "../../utils/echoFormGenerator";
+import { getReportBlob, viewReportFile, downloadReportFile } from "../../services/reportStorage";
 import { createSafeFileUrl, openPdfInNewTab, downloadBlobFile } from "../../utils/fileViewerUtils";
 
 interface EchoFormModalProps {
@@ -11,47 +12,89 @@ interface EchoFormModalProps {
 
 export function EchoFormModal({ request, onClose }: EchoFormModalProps) {
   const [safeFileUrl, setSafeFileUrl] = useState<string | null>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
 
+  const storagePath = request.resultFile?.storagePath;
   const rawDataUrl = request.resultFile?.dataUrl;
   const fileName = request.resultFile?.fileName || "Diagnostic_Report.pdf";
-  const hasUploadedFile = Boolean(rawDataUrl);
+  const hasUploadedFile = Boolean(storagePath || rawDataUrl);
 
   const isImage =
-    rawDataUrl?.startsWith("data:image/") || /\.(png|jpg|jpeg|webp|gif|bmp|svg)$/i.test(fileName);
+    /\.(png|jpg|jpeg|webp|gif|bmp|svg)$/i.test(fileName) ||
+    rawDataUrl?.startsWith("data:image/") ||
+    request.resultFile?.contentType?.startsWith("image/");
 
   const isPdf =
-    rawDataUrl?.startsWith("data:application/pdf") ||
     /\.pdf$/i.test(fileName) ||
+    rawDataUrl?.startsWith("data:application/pdf") ||
+    request.resultFile?.contentType === "application/pdf" ||
     (!isImage && hasUploadedFile);
 
-  // Convert dataUrl to safe same-origin blobUrl to prevent Chrome "blocked by Chrome" security errors
+  // Load file from Firebase Storage (or legacy dataUrl) into a transient, revocable Blob URL
   useEffect(() => {
-    if (!rawDataUrl) {
-      setSafeFileUrl(null);
-      return;
+    let currentObjectUrl: string | null = null;
+    let isCancelled = false;
+
+    async function loadFile() {
+      if (storagePath) {
+        setIsLoadingFile(true);
+        try {
+          const blob = await getReportBlob(storagePath);
+          if (!isCancelled) {
+            currentObjectUrl = URL.createObjectURL(blob);
+            setSafeFileUrl(currentObjectUrl);
+          }
+        } catch (err) {
+          console.error("Failed to load report from storage:", err);
+          if (!isCancelled) {
+            setSafeFileUrl(null);
+          }
+        } finally {
+          if (!isCancelled) {
+            setIsLoadingFile(false);
+          }
+        }
+      } else if (rawDataUrl) {
+        const safeObj = createSafeFileUrl(rawDataUrl);
+        if (safeObj) {
+          currentObjectUrl = safeObj.url;
+          setSafeFileUrl(currentObjectUrl);
+        } else {
+          setSafeFileUrl(rawDataUrl);
+        }
+      } else {
+        setSafeFileUrl(null);
+      }
     }
 
-    const safeObj = createSafeFileUrl(rawDataUrl);
-    if (safeObj) {
-      setSafeFileUrl(safeObj.url);
-      return () => {
-        safeObj.revoke();
-      };
-    } else {
-      setSafeFileUrl(rawDataUrl);
-    }
-  }, [rawDataUrl]);
+    loadFile();
 
-  const handleDownload = () => {
-    if (safeFileUrl || rawDataUrl) {
+    return () => {
+      isCancelled = true;
+      if (currentObjectUrl && currentObjectUrl.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(currentObjectUrl);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [storagePath, rawDataUrl]);
+
+  const handleDownload = async () => {
+    if (storagePath) {
+      await downloadReportFile(storagePath, fileName);
+    } else if (safeFileUrl || rawDataUrl) {
       downloadBlobFile(safeFileUrl || rawDataUrl!, fileName);
     } else {
       downloadEchoPDFForm(request);
     }
   };
 
-  const handleOpenInNewTab = () => {
-    if (safeFileUrl || rawDataUrl) {
+  const handleOpenInNewTab = async () => {
+    if (storagePath) {
+      await viewReportFile(storagePath, fileName);
+    } else if (safeFileUrl || rawDataUrl) {
       openPdfInNewTab(safeFileUrl || rawDataUrl!, fileName);
     }
   };
@@ -155,7 +198,15 @@ export function EchoFormModal({ request, onClose }: EchoFormModalProps) {
         {/* Modal Body / Document View */}
         <div className="flex-1 overflow-auto bg-neutral-200/70 dark:bg-neutral-900/90 p-2 sm:p-4 flex flex-col justify-center items-center">
           {hasUploadedFile ? (
-            isImage ? (
+            isLoadingFile ? (
+              <div className="p-8 text-center bg-white dark:bg-card rounded-xl shadow-lg border border-border space-y-4 max-w-md">
+                <FileText className="h-12 w-12 text-primary mx-auto animate-pulse" />
+                <h4 className="text-sm font-bold text-heading">Loading Protected Report...</h4>
+                <p className="text-xs text-muted-foreground">
+                  Fetching authorized document from Firebase Storage...
+                </p>
+              </div>
+            ) : isImage ? (
               <div className="flex flex-col items-center justify-center p-4 bg-white dark:bg-neutral-800 rounded-xl shadow-xl max-w-full max-h-full overflow-auto">
                 <img
                   src={safeFileUrl || rawDataUrl}
@@ -217,8 +268,8 @@ export function EchoFormModal({ request, onClose }: EchoFormModalProps) {
               </div>
             ) : (
               <div className="p-8 text-center bg-white dark:bg-card rounded-xl shadow-lg border border-border space-y-4 max-w-md">
-                <FileText className="h-12 w-12 text-primary mx-auto animate-pulse" />
-                <h4 className="text-sm font-bold text-heading">Loading Document Preview...</h4>
+                <FileText className="h-12 w-12 text-primary mx-auto" />
+                <h4 className="text-sm font-bold text-heading">Diagnostic Report Ready</h4>
                 <p className="text-xs text-muted-foreground">{fileName}</p>
                 <div className="flex justify-center gap-2 pt-2">
                   <button

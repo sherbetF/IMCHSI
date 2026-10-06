@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeFirestore, getFirestore, doc, getDocFromServer } from "firebase/firestore";
 import { getAuth, setPersistence, browserSessionPersistence } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 const app = !getApps().length
@@ -35,6 +36,7 @@ function getOrCreateFirestore() {
 
 export const db = getOrCreateFirestore();
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Enforce session-only authentication persistence for all facility and admin logins
 setPersistence(auth, browserSessionPersistence).catch((err) => {

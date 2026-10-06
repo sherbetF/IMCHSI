@@ -1,0 +1,69 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default deny catch-all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return hasUserDoc() &&
+        getUserDoc().data.active == true;
+    }
+
+    function isAdmin() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "admin";
+    }
+
+    function isFacilityUser(facilityId) {
+      return isActiveUser() &&
+        getUserDoc().data.role == "facility" &&
+        getUserDoc().data.facilityId == facilityId;
+    }
+
+    function isOutsourceUser() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "outsource";
+    }
+
+    // File validation: PDF and common medical image types up to 20MB
+    function isValidReportFile() {
+      return request.resource.size <= 20 * 1024 * 1024 &&
+        (request.resource.contentType.matches('application/pdf') ||
+         request.resource.contentType.matches('image/(png|jpeg|jpg|webp)'));
+    }
+
+    // Facility medical diagnostic report files
+    match /facilities/{facilityId}/reports/{reportId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+      allow create: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId)) && isValidReportFile();
+      allow update: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId)) && isValidReportFile();
+      allow delete: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+    }
+
+    // Outsource diagnostic reports (accessible by designated facility, admin, and centralized outsource provider)
+    match /outsource/{facilityId}/reports/{reportId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser());
+      allow create: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser()) && isValidReportFile();
+      allow update: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser()) && isValidReportFile();
+      allow delete: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser());
+    }
+  }
+}

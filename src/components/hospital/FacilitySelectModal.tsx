@@ -16,11 +16,10 @@ import {
 } from "lucide-react";
 import jataNegaraLogo from "@/assets/jata-negara.svg";
 import { FACILITIES_DATA, FacilityCategory } from "@/data/facilities";
-import { useFacility, getFacilityId, getFacilityAuthEmail } from "@/context/FacilityContext";
+import { useFacility, getFacilityAuthEmail } from "@/context/FacilityContext";
 import { db, auth } from "@/lib/firebase";
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   setPersistence,
   browserSessionPersistence,
 } from "firebase/auth";
@@ -35,16 +34,6 @@ import {
   where,
 } from "firebase/firestore";
 import { toast } from "sonner";
-
-/**
- * Validates admin password strength (words only: letters and spaces only, no numbers, minimum 6 characters)
- */
-const validateAdminPasswordStrength = (password: string): boolean => {
-  const trimmed = password.trim();
-  if (trimmed.length < 6) return false;
-  // Words only: alphabetic letters and spaces only (no numbers, no special characters)
-  return /^[a-zA-Z\s]+$/.test(trimmed);
-};
 
 export function FacilitySelectModal() {
   const {
@@ -65,7 +54,7 @@ export function FacilitySelectModal() {
   const [selectedName, setSelectedName] = useState<string>(
     selectedFacility?.name && selectedFacility.category !== "Hospital Sultan Ismail Admin"
       ? selectedFacility.name
-      : FACILITIES_DATA[0]?.items[0] || "",
+      : FACILITIES_DATA[0]?.items[0]?.facilityName || "",
   );
 
   // Search state for facility name
@@ -82,67 +71,11 @@ export function FacilitySelectModal() {
   const [facilityError, setFacilityError] = useState("");
   const [facilityLoading, setFacilityLoading] = useState(false);
   const [showForgotNotice, setShowForgotNotice] = useState(false);
-  const [isFirstTimeFacility, setIsFirstTimeFacility] = useState(false);
-
-  // Check if facility is signing in for the first time
-  useEffect(() => {
-    if (!isFacilityLoginOpen || !selectedName) {
-      setIsFirstTimeFacility(false);
-      return;
-    }
-    let isMounted = true;
-    const checkFirstTime = async () => {
-      try {
-        const facId = getFacilityId(selectedName);
-        const facDocRef = doc(db, "facilities", facId);
-        const facDocSnap = await getDoc(facDocRef);
-        if (isMounted) {
-          if (!facDocSnap.exists() || facDocSnap.data()?.isFirstTime === true) {
-            setIsFirstTimeFacility(true);
-          } else {
-            setIsFirstTimeFacility(false);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not check facility first-time status:", err);
-      }
-    };
-    checkFirstTime();
-    return () => {
-      isMounted = false;
-    };
-  }, [isFacilityLoginOpen, selectedName]);
-
-  // Admin Facility Accounts Management state
-  const [allAccounts, setAllAccounts] = useState<Record<string, Record<string, unknown>>>({});
-  const [adminLoading, setAdminLoading] = useState(false);
-
-  const refreshAdminAccounts = async () => {
-    setAdminLoading(true);
-    try {
-      const colRef = collection(db, "users");
-      const q = query(colRef, where("role", "==", "facility"));
-      const snap = await getDocs(q);
-      const accounts: Record<string, Record<string, unknown>> = {};
-      snap.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.facilityId) {
-          accounts[data.facilityId as string] = { id: docSnap.id, ...data };
-        }
-      });
-      setAllAccounts(accounts);
-    } catch (err) {
-      console.error("Error loading accounts:", err);
-    } finally {
-      setAdminLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAdminAuthOpen && isAdmin) {
-      refreshAdminAccounts();
-    }
-  }, [isAdminAuthOpen, isAdmin]);
+  const [firstLoginWelcomeUser, setFirstLoginWelcomeUser] = useState<{
+    uid: string;
+    facilityName: string;
+    category: FacilityCategory;
+  } | null>(null);
 
   // Sync state when modal opens or closes or selectedFacility changes
   useEffect(() => {
@@ -170,13 +103,15 @@ export function FacilitySelectModal() {
       const group = FACILITIES_DATA[0];
       if (group && group.items[0]) {
         setSelectedCategory(group.category);
-        setSelectedName(group.items[0]);
+        setSelectedName(group.items[0].facilityName);
       }
     }
   }, [selectedFacility, modalStep, isModalOpen]);
 
   const currentCategoryData = FACILITIES_DATA.find((g) => g.category === selectedCategory);
-  const availableFacilities = currentCategoryData ? currentCategoryData.items : [];
+  const availableFacilities = currentCategoryData
+    ? currentCategoryData.items.map((f) => f.facilityName)
+    : [];
 
   const filteredFacilities = availableFacilities.filter((facility) => {
     const q = searchQuery.toLowerCase().trim();
@@ -208,7 +143,7 @@ export function FacilitySelectModal() {
     setSearchQuery("");
     const group = FACILITIES_DATA.find((g) => g.category === category);
     if (group && group.items.length > 0) {
-      setSelectedName(group.items[0]);
+      setSelectedName(group.items[0].facilityName);
     } else {
       setSelectedName("");
     }
@@ -216,55 +151,6 @@ export function FacilitySelectModal() {
 
   const handleConfirm = async () => {
     if (selectedCategory && selectedName) {
-      // If Hospital category, connect seamless facility session without password
-      if (selectedCategory === "Hospital") {
-        setFacilityLoading(true);
-        try {
-          const facId = getFacilityId(selectedName);
-          const email = getFacilityAuthEmail(facId, 0);
-          const defaultPass = `hospital_hsi_${facId}`;
-          let userCredential;
-          try {
-            await setPersistence(auth, browserSessionPersistence);
-            userCredential = await signInWithEmailAndPassword(auth, email, defaultPass);
-          } catch (authErr: unknown) {
-            const err = authErr as { code?: string };
-            if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
-              await setPersistence(auth, browserSessionPersistence);
-              userCredential = await createUserWithEmailAndPassword(auth, email, defaultPass);
-            } else {
-              throw authErr;
-            }
-          }
-          const user = userCredential.user;
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (!userDocSnap.exists()) {
-            await setDoc(userDocRef, {
-              role: "facility",
-              facilityId: facId,
-              facilityName: selectedName,
-              category: "Hospital",
-              active: true,
-              createdAt: new Date().toISOString(),
-            });
-          }
-          setSelectedFacility({
-            category: selectedCategory,
-            name: selectedName,
-          });
-          toast.success(`Successfully logged into ${selectedName}`);
-          closeModal();
-        } catch (err) {
-          console.error("Hospital login error:", err);
-          toast.error("Failed to connect to hospital facility.");
-        } finally {
-          setFacilityLoading(false);
-        }
-        return;
-      }
-
-      // Password-protected categories: Open password login dialog directly
       setFacilityError("");
       setFacilityPassword("");
       setShowForgotNotice(false);
@@ -277,22 +163,12 @@ export function FacilitySelectModal() {
     setFacilityError("");
     setFacilityLoading(true);
 
-    const facId = getFacilityId(selectedName);
+    const group = FACILITIES_DATA.find((g) => g.category === selectedCategory);
+    const facilityObj = group?.items.find((f) => f.facilityName === selectedName);
+    const facId = facilityObj ? facilityObj.facilityId : "";
 
     try {
-      // Check if a resetCount exists for this facility
-      let resetCount = 0;
-      try {
-        const facDocRef = doc(db, "facilities", facId);
-        const facDocSnap = await getDoc(facDocRef);
-        if (facDocSnap.exists() && typeof facDocSnap.data().resetCount === "number") {
-          resetCount = facDocSnap.data().resetCount;
-        }
-      } catch (err) {
-        console.warn("Could not read facility registry doc:", err);
-      }
-
-      const email = getFacilityAuthEmail(facId, resetCount);
+      const email = getFacilityAuthEmail(facId);
 
       if (facilityPassword.length < 6) {
         setFacilityError("Password must be at least 6 characters.");
@@ -304,98 +180,60 @@ export function FacilitySelectModal() {
       try {
         await setPersistence(auth, browserSessionPersistence);
         userCredential = await signInWithEmailAndPassword(auth, email, facilityPassword);
-      } catch (authErr: unknown) {
-        const err = authErr as { code?: string };
-        // If account does not exist in Firebase Auth yet, provision it on first use
-        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
-          try {
-            await setPersistence(auth, browserSessionPersistence);
-            userCredential = await createUserWithEmailAndPassword(auth, email, facilityPassword);
-          } catch (createErr: unknown) {
-            const cErr = createErr as { code?: string };
-            if (cErr.code === "auth/email-already-in-use") {
-              setFacilityError(
-                `Incorrect password for ${selectedName}. Please try again or contact the administrator to reset your password.`,
-              );
-              setShowForgotNotice(true);
-              setFacilityLoading(false);
-              return;
-            }
-            if (cErr.code === "auth/weak-password") {
-              setFacilityError("Password must be at least 6 characters.");
-              setFacilityLoading(false);
-              return;
-            }
-            setFacilityError("Incorrect password for this facility.");
-            setShowForgotNotice(true);
-            setFacilityLoading(false);
-            return;
-          }
-        } else {
-          setFacilityError("Incorrect password for this facility.");
-          setShowForgotNotice(true);
-          setFacilityLoading(false);
-          return;
-        }
+      } catch {
+        setFacilityPassword("");
+        setFacilityError("Invalid facility or password.");
+        setShowForgotNotice(true);
+        setFacilityLoading(false);
+        return;
       }
 
       const user = userCredential.user;
 
-      // Ensure profile exists in users/{uid}
+      // Validate trusted authorization profile in users/{uid}
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
       if (!userDocSnap.exists()) {
-        await setDoc(userDocRef, {
-          role: "facility",
-          facilityId: facId,
+        await auth.signOut();
+        setFacilityPassword("");
+        setFacilityError("Invalid facility or password.");
+        setFacilityLoading(false);
+        return;
+      }
+
+      const data = userDocSnap.data();
+      if (data.active === false) {
+        await auth.signOut();
+        setFacilityError(
+          "This facility account is currently disabled. Please contact the administrator.",
+        );
+        setFacilityLoading(false);
+        return;
+      }
+
+      if (data.role !== "facility" || data.facilityId !== facId) {
+        await auth.signOut();
+        setFacilityPassword("");
+        setFacilityError("Invalid facility or password.");
+        setFacilityLoading(false);
+        return;
+      }
+
+      // Check if this is the first login recorded for a non-hospital facility
+      if (!data.firstLoginAcknowledgedAt && selectedCategory !== "Hospital") {
+        setFirstLoginWelcomeUser({
+          uid: user.uid,
           facilityName: selectedName,
           category: selectedCategory,
-          active: true,
-          createdAt: new Date().toISOString(),
         });
-      } else {
-        const data = userDocSnap.data();
-        if (data.active === false) {
-          await auth.signOut();
-          setFacilityError(
-            "This facility account is currently disabled. Please contact the administrator.",
-          );
-          setFacilityLoading(false);
-          return;
-        }
+        setFacilityPassword("");
+        setFacilityLoading(false);
+        return;
       }
 
-      // Record or update facility registry doc
-      try {
-        const facDocRef = doc(db, "facilities", facId);
-        const facDocSnap = await getDoc(facDocRef);
-        if (!facDocSnap.exists()) {
-          await setDoc(facDocRef, {
-            facilityId: facId,
-            facilityName: selectedName,
-            category: selectedCategory,
-            status: "Active",
-            isFirstTime: false,
-            resetCount,
-            createdAt: new Date().toISOString(),
-          });
-        } else {
-          await setDoc(
-            facDocRef,
-            {
-              isFirstTime: false,
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true },
-          );
-        }
-      } catch (err) {
-        console.warn("Could not save facility record:", err);
-      }
-
-      setIsFirstTimeFacility(false);
       setSelectedFacility({
+        facilityId: facId,
         category: selectedCategory,
         name: selectedName,
       });
@@ -406,50 +244,26 @@ export function FacilitySelectModal() {
       toast.success(`Successfully signed in to ${selectedName}`);
     } catch (err) {
       console.error("Facility login error:", err);
-      setFacilityError("Failed to sign in. Please verify your credentials.");
+      setFacilityPassword("");
+      setFacilityError("Invalid facility or password.");
     } finally {
       setFacilityLoading(false);
     }
   };
 
   const handleAdminResetFacility = async (facilityName: string) => {
-    const facId = getFacilityId(facilityName);
-    if (
-      !window.confirm(
-        `Are you sure you want to reset the password for ${facilityName}? The clinic will be able to set a new password on their next sign-in.`,
-      )
-    ) {
-      return;
+    let facId = "";
+    for (const group of FACILITIES_DATA) {
+      const match = group.items.find((f) => f.facilityName === facilityName);
+      if (match) {
+        facId = match.facilityId;
+        break;
+      }
     }
-    try {
-      const facDocRef = doc(db, "facilities", facId);
-      const facDocSnap = await getDoc(facDocRef);
-      const currentReset =
-        facDocSnap.exists() && typeof facDocSnap.data().resetCount === "number"
-          ? (facDocSnap.data().resetCount as number)
-          : 0;
-
-      await setDoc(
-        facDocRef,
-        {
-          facilityId: facId,
-          facilityName,
-          resetCount: currentReset + 1,
-          status: "Active",
-          isFirstTime: true,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
-
-      toast.success(
-        `Password reset for ${facilityName}. The facility can now create a new password upon next sign-in.`,
-      );
-      refreshAdminAccounts();
-    } catch (err) {
-      console.error("Error resetting facility account:", err);
-      toast.error("Failed to reset facility password.");
-    }
+    toast.info(
+      `Password resets must be executed using the trusted backend script: node scripts/reset-facility-password.js ${facId}`,
+      { duration: 6000 },
+    );
   };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -458,72 +272,37 @@ export function FacilitySelectModal() {
     setFacilityLoading(true);
 
     try {
-      let userCredential;
-      try {
-        await setPersistence(auth, browserSessionPersistence);
-        userCredential = await signInWithEmailAndPassword(auth, "admin@auth.local", adminPassword);
-      } catch (authErr: unknown) {
-        const err = authErr as { code?: string };
-        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
-          // If admin account does not exist in Firebase Auth yet, provision on first use
-          if (!validateAdminPasswordStrength(adminPassword)) {
-            if (/[0-9]/.test(adminPassword)) {
-              setAuthError("Admin password requirement: words only (no numbers allowed).");
-            } else if (adminPassword.trim().length < 6) {
-              setAuthError("Admin password must be at least 6 characters (words only).");
-            } else {
-              setAuthError("Admin password requirement: words only (letters and spaces only).");
-            }
-            setFacilityLoading(false);
-            return;
-          }
-          try {
-            await setPersistence(auth, browserSessionPersistence);
-            userCredential = await createUserWithEmailAndPassword(
-              auth,
-              "admin@auth.local",
-              adminPassword,
-            );
-          } catch (createErr: unknown) {
-            const cErr = createErr as { code?: string };
-            if (cErr.code === "auth/email-already-in-use") {
-              setAuthError("Incorrect administrator password.");
-              setFacilityLoading(false);
-              return;
-            }
-            setAuthError("Incorrect administrator password.");
-            setFacilityLoading(false);
-            return;
-          }
-        } else {
-          setAuthError("Incorrect administrator password.");
-          setFacilityLoading(false);
-          return;
-        }
-      }
-
+      await setPersistence(auth, browserSessionPersistence);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        "admin@auth.local",
+        adminPassword,
+      );
       const user = userCredential.user;
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
       if (!userDocSnap.exists()) {
-        await setDoc(userDocRef, {
-          role: "admin",
-          active: true,
-          username: "admin",
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        const data = userDocSnap.data();
-        if (data.active === false || data.role !== "admin") {
-          await auth.signOut();
-          setAuthError("This administrator account is disabled or unauthorized.");
-          setFacilityLoading(false);
-          return;
-        }
+        await auth.signOut();
+        setAdminPassword("");
+        setAuthError(
+          "Administrator authorization profile not found. Administrator accounts must be provisioned through a trusted backend.",
+        );
+        setFacilityLoading(false);
+        return;
+      }
+
+      const data = userDocSnap.data();
+      if (data.active !== true || data.role !== "admin") {
+        await auth.signOut();
+        setAdminPassword("");
+        setAuthError("This administrator account is disabled or unauthorized.");
+        setFacilityLoading(false);
+        return;
       }
 
       setSelectedFacility({
+        facilityId: "admin",
         category: "Hospital Sultan Ismail Admin",
         name: "Hospital Sultan Ismail (Admin Mode)",
       });
@@ -532,37 +311,13 @@ export function FacilitySelectModal() {
       setAdminPassword("");
       setAuthError("");
       toast.success("Administrator access granted!");
-    } catch (err) {
+      closeModal();
+    } catch (err: unknown) {
       console.error("Admin sign in failed:", err);
-      setAuthError("Incorrect administrator password.");
+      setAdminPassword("");
+      setAuthError("Incorrect administrator password or unprovisioned administrator account.");
     } finally {
       setFacilityLoading(false);
-    }
-  };
-
-  const handleAdminToggleStatus = async (
-    facilityName: string,
-    accountData: Record<string, unknown>,
-  ) => {
-    const currentActive = accountData.active !== false;
-    const newActive = !currentActive;
-    if (
-      !window.confirm(
-        `Are you sure you want to ${newActive ? "reactivate" : "disable"} the account for ${facilityName}?`,
-      )
-    ) {
-      return;
-    }
-    try {
-      const docRef = doc(db, "users", accountData.id as string);
-      await updateDoc(docRef, { active: newActive });
-      toast.success(
-        `Successfully set ${facilityName} status to ${newActive ? "Active" : "Disabled"}!`,
-      );
-      refreshAdminAccounts();
-    } catch (err) {
-      console.error("Error updating account status:", err);
-      toast.error("Failed to update status.");
     }
   };
 
@@ -603,21 +358,18 @@ export function FacilitySelectModal() {
             </div>
 
             <form onSubmit={handleFacilityLogin} className="p-6 space-y-5">
-              {/* First-time login / Create password notice */}
-              {isFirstTimeFacility && (
-                <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 text-xs space-y-1.5 animate-in fade-in duration-200">
-                  <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                    <KeyRound className="h-4 w-4 shrink-0" />
-                    <span>Please create a password</span>
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed">
-                    This is the first time{" "}
-                    <span className="font-semibold text-foreground">{selectedName}</span> is signing
-                    in. Please create a password (minimum 6 characters) for your clinic. You will
-                    use this password for all future sign-ins.
-                  </p>
+              {/* Facility Sign-In Notice */}
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 text-xs space-y-1.5 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                  <KeyRound className="h-4 w-4 shrink-0" />
+                  <span>Facility Sign-In</span>
                 </div>
-              )}
+                <p className="text-muted-foreground leading-relaxed">
+                  Please enter the password provisioned by your administrator for{" "}
+                  <span className="font-semibold text-foreground">{selectedName}</span>. Contact the
+                  administrator if you need credential assistance.
+                </p>
+              </div>
 
               {/* Error Box */}
               {facilityError && (
@@ -653,7 +405,7 @@ export function FacilitySelectModal() {
               {/* Password Field */}
               <div className="space-y-2">
                 <label className="block text-[10px] font-bold text-heading uppercase tracking-wider">
-                  {isFirstTimeFacility ? "Create Password" : "Password"}
+                  Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
@@ -664,11 +416,7 @@ export function FacilitySelectModal() {
                       setFacilityPassword(e.target.value);
                       setFacilityError("");
                     }}
-                    placeholder={
-                      isFirstTimeFacility
-                        ? "Create a password (minimum 6 characters)..."
-                        : "Enter facility password..."
-                    }
+                    placeholder="Enter facility password..."
                     className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     autoFocus
                     required
@@ -678,20 +426,13 @@ export function FacilitySelectModal() {
 
               {/* Action buttons */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 shrink-0">
-                {!isFirstTimeFacility ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotNotice(!showForgotNotice)}
-                    className="text-xs font-bold text-primary hover:underline"
-                  >
-                    Forgot Password?
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Info className="h-3.5 w-3.5 text-primary" />
-                    First time setup
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowForgotNotice(!showForgotNotice)}
+                  className="text-xs font-bold text-primary hover:underline"
+                >
+                  Forgot Password?
+                </button>
 
                 <div className="flex gap-2 ml-auto">
                   <button
@@ -716,140 +457,85 @@ export function FacilitySelectModal() {
                     ) : (
                       <Check className="h-4 w-4" />
                     )}
-                    <span>
-                      {facilityLoading
-                        ? "Verifying..."
-                        : isFirstTimeFacility
-                          ? "Create & Sign In"
-                          : "Sign In"}
-                    </span>
+                    <span>{facilityLoading ? "Verifying..." : "Sign In"}</span>
                   </button>
                 </div>
               </div>
             </form>
           </div>
         ) : isAdminAuthOpen ? (
-          isAdmin ? (
-            /* =========================================================================
-                ADMIN INSTRUMENT: FACILITY ACCOUNTS MANAGEMENT PANEL (LOGGED IN)
-            ========================================================================= */
-            <div className="flex flex-col h-[85vh] max-h-[85vh]">
-              <div className="border-b border-border bg-surface p-5 flex items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                    <ShieldCheck className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-heading">Facility Account Manager</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Hospital Sultan Ismail Johor Bahru
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAdminAuthOpen(false);
-                  }}
-                  className="rounded-xl border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-all shrink-0"
-                  title="Close Manager"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Admin Panel Body */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1 text-xs">
-                  <h3 className="font-bold text-heading">Portal Accounts Administrator Console</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    View active status and enable/disable portal accounts for primary-care health
-                    clinics (Klinik Kesihatan, KKIA, Klinik Desa).
+          /* =========================================================================
+              VIEW 2: ADMIN PASSWORD LOGIN FORM
+          ========================================================================= */
+          <div className="flex flex-col">
+            <div className="border-b border-border bg-surface p-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                  <ShieldCheck className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-heading">Hospital Admin Access</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Hospital Sultan Ismail Johor Bahru
                   </p>
                 </div>
-
-                {adminLoading ? (
-                  <div className="py-20 text-center text-xs text-muted-foreground font-semibold flex flex-col items-center gap-2">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <span>Loading facility configurations...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {FACILITIES_DATA.filter((g) => g.category !== "Hospital").map((group) => (
-                      <div key={group.category} className="space-y-2">
-                        <h4 className="text-xs font-bold text-primary uppercase tracking-wider border-b border-border pb-1">
-                          {group.category} ({group.items.length})
-                        </h4>
-                        <div className="divide-y divide-border/50 border border-border/80 rounded-xl bg-background overflow-hidden">
-                          {group.items.map((facilityName) => {
-                            const facId = getFacilityId(facilityName);
-                            const account = allAccounts[facId];
-                            const isConfigured = !!account;
-                            const isActive = isConfigured && account.active !== false;
-
-                            return (
-                              <div
-                                key={facilityName}
-                                className="flex items-center justify-between p-3 text-xs gap-3 hover:bg-surface/30"
-                              >
-                                <div className="min-w-0">
-                                  <p className="font-bold text-heading truncate">{facilityName}</p>
-                                  <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                                    <span>Status:</span>
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${
-                                        !isConfigured
-                                          ? "bg-muted text-muted-foreground"
-                                          : isActive
-                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                            : "bg-destructive/10 text-destructive"
-                                      }`}
-                                    >
-                                      {!isConfigured
-                                        ? "Not Logged In Yet"
-                                        : isActive
-                                          ? "Active"
-                                          : "Disabled"}
-                                    </span>
-                                  </p>
-                                </div>
-
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAdminResetFacility(facilityName)}
-                                    className="rounded px-2.5 py-1 text-[10px] font-bold border border-border bg-surface hover:bg-accent text-foreground transition-all"
-                                    title="Reset credentials so clinic can set new password"
-                                  >
-                                    Reset Password
-                                  </button>
-                                  {isConfigured && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAdminToggleStatus(facilityName, account)}
-                                      className={`rounded px-2.5 py-1 text-[10px] font-bold ${
-                                        isActive
-                                          ? "border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10"
-                                          : "border border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                                      }`}
-                                    >
-                                      {isActive ? "Disable" : "Enable"}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              {/* Footer */}
-              <div className="border-t border-border bg-surface p-4 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdminAuthOpen(false);
+                  setAuthError("");
+                  setModalStep("facility");
+                }}
+                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminLogin} className="p-6 space-y-5">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-sm font-bold text-heading">
+                  <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <h3>Internal Medicine Admin Access</h3>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Enter the administrator password to manage referral requests and view registered
+                  facilities.
+                </p>
+              </div>
+
+              {/* Error Box */}
+              {authError && (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-xs text-destructive font-semibold">
+                  {authError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
+                  Admin Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => {
+                      setAdminPassword(e.target.value);
+                      setAuthError("");
+                    }}
+                    placeholder="Enter admin password..."
+                    className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    autoFocus
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -857,108 +543,21 @@ export function FacilitySelectModal() {
                     setModalStep("facility");
                     closeModal();
                   }}
-                  className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90"
+                  className="rounded-xl border border-border px-4 py-2.5 text-xs font-semibold hover:bg-surface"
                 >
-                  Done
+                  Cancel
                 </button>
-              </div>
-            </div>
-          ) : (
-            /* =========================================================================
-                VIEW 2: ADMIN PASSWORD LOGIN FORM
-            ========================================================================= */
-            <div className="flex flex-col">
-              <div className="border-b border-border bg-surface p-5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                    <ShieldCheck className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-heading">Hospital Admin Access</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Hospital Sultan Ismail Johor Bahru
-                    </p>
-                  </div>
-                </div>
-
                 <button
-                  type="button"
-                  onClick={() => {
-                    setIsAdminAuthOpen(false);
-                    setAuthError("");
-                    setModalStep("facility");
-                  }}
-                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                  type="submit"
+                  disabled={facilityLoading || !adminPassword}
+                  className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Back</span>
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>{facilityLoading ? "Verifying..." : "Admin Sign In"}</span>
                 </button>
               </div>
-
-              <form onSubmit={handleAdminLogin} className="p-6 space-y-5">
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
-                  <div className="flex items-center gap-2 text-sm font-bold text-heading">
-                    <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <h3>Internal Medicine Admin Access</h3>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Enter the administrator password (words only, no numbers) to manage referral
-                    requests and view registered facilities.
-                  </p>
-                </div>
-
-                {/* Error Box */}
-                {authError && (
-                  <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-xs text-destructive font-semibold">
-                    {authError}
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                    Admin Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="password"
-                      value={adminPassword}
-                      onChange={(e) => {
-                        setAdminPassword(e.target.value);
-                        setAuthError("");
-                      }}
-                      placeholder="Enter admin password (words only)..."
-                      className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      autoFocus
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAdminAuthOpen(false);
-                      setModalStep("facility");
-                      closeModal();
-                    }}
-                    className="rounded-xl border border-border px-4 py-2.5 text-xs font-semibold hover:bg-surface"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={facilityLoading || !adminPassword}
-                    className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    <span>{facilityLoading ? "Verifying..." : "Admin Sign In"}</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )
+            </form>
+          </div>
         ) : modalStep === "greeting" ? (
           /* =========================================================================
               VIEW 3: SIMPLE & ELEGANT GREETING POPUP
@@ -1138,6 +737,59 @@ export function FacilitySelectModal() {
           </div>
         )}
       </div>
+
+      {/* First-Time Login Welcome Modal (Non-Hospital Facilities) */}
+      {firstLoginWelcomeUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-primary/20 bg-background p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-primary">
+              <Sparkles className="h-6 w-6 shrink-0" />
+              <h3 className="text-base font-bold text-heading">Welcome to Hospital Staff Hub</h3>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Welcome. This is the first login recorded for this facility (
+              <span className="font-semibold text-foreground">
+                {firstLoginWelcomeUser.facilityName}
+              </span>
+              ).
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your facility account is active for use. Please keep your password secure and contact
+              the administrator if a password reset is required.
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetUid = firstLoginWelcomeUser.uid;
+                  const targetName = firstLoginWelcomeUser.facilityName;
+                  const targetCategory = firstLoginWelcomeUser.category;
+                  try {
+                    await updateDoc(doc(db, "users", targetUid), {
+                      firstLoginAcknowledgedAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    });
+                  } catch (err) {
+                    console.warn("Could not save firstLoginAcknowledgedAt timestamp:", err);
+                  }
+                  setSelectedFacility({
+                    category: targetCategory,
+                    name: targetName,
+                  });
+                  setFirstLoginWelcomeUser(null);
+                  setIsFacilityLoginOpen(false);
+                  setFacilityPassword("");
+                  closeModal();
+                  toast.success(`Successfully signed in to ${targetName}`);
+                }}
+                className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow hover:opacity-90 transition-opacity"
+              >
+                OK / Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

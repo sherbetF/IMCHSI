@@ -12,77 +12,109 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Trusted Administrator Authorization:
+    // Derives authorization exclusively from a trusted Firestore user record (users/{uid}),
+    // never from client claims or email address alone.
     function isAdmin() {
-      return isSignedIn() && (
-        (request.auth.token.email != null && request.auth.token.email == "admin@auth.local") || (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
-        )
-      );
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
     }
 
     function isFacilityUser() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isOutsourceUser() {
       return isSignedIn() && (
-        (request.auth.token.email != null && request.auth.token.email.matches("facility_.*@auth\\.local")) || (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility" &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
-        )
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "outsource" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
       );
     }
 
     // User profiles (secure and restricted)
+    // CRITICAL: Normal clients CANNOT create or manipulate authorization profiles.
+    // All accounts (admin, facility, outsource) must be provisioned through trusted backend scripts / Firebase Admin SDK.
     match /users/{uid} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && (
-        request.auth.uid == uid || isAdmin()
-      );
-      allow delete: if isAdmin();
+      // Users can only read their own profile; admins can read any profile for account management
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      
+      // Only admins can list users (e.g. for facility account management dashboard)
+      allow list: if isAdmin();
+      
+      // Public client creation of users/{uid} is strictly denied. Provisioning is backend-only via Firebase Admin SDK.
+      allow create: if false;
+      
+      // Updates: Admins managing facility active status OR authenticated users acknowledging first login metadata
+      allow update: if (isAdmin() &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.facilityId == resource.data.facilityId &&
+        resource.data.role == "facility") ||
+        (isSignedIn() && request.auth.uid == uid &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.facilityId == resource.data.facilityId &&
+         request.resource.data.active == resource.data.active &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt']));
+      
+      // User profiles cannot be deleted from client SDK (deactivation is done via active: false)
+      allow delete: if false;
     }
 
     // Facility records (used for managing pre-created accounts & resets)
     match /facilities/{facilityId} {
-      allow get: if true;
-      allow list: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && !exists(/databases/$(database)/documents/facilities/$(facilityId)));
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // Admin first-time setup initialization config
+    // Admin config (restricted strictly to provisioned admins)
     match /admin_config/{docId} {
-      allow read: if true;
-      allow write: if !exists(/databases/$(database)/documents/admin_config/setup);
+      allow read, write: if isAdmin();
     }
 
-    // Standard secure helper for appointment records
+    // Helper to get authenticated user's trusted facilityId
+    function userFacilityId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId;
+    }
+
+    // Canonical facility authorization helpers:
+    // Strictly evaluates canonical facilityId from trusted users/{uid} document.
+    // facilityName NEVER grants authorization.
     function canAccessRecord(record) {
       return isAdmin() || (
-        isFacilityUser() && (
-          record.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
-          record.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
-        )
+        isSignedIn() &&
+        record.facilityId is string &&
+        (isFacilityUser() ? record.facilityId == userFacilityId() : true)
       );
     }
 
     function canCreateRecord(record) {
       return isAdmin() || (
-        isFacilityUser() && (
-          record.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
-          record.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
-        )
+        isSignedIn() &&
+        record.facilityId is string &&
+        (isFacilityUser() ? record.facilityId == userFacilityId() : true)
       );
     }
 
     function canUpdateRecord(existingRecord, incomingRecord) {
       return isAdmin() || (
-        isFacilityUser() && (
-          existingRecord.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId || 
-          existingRecord.facilityName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityName
-        ) && (
-          incomingRecord.facilityId == existingRecord.facilityId || 
-          incomingRecord.facilityName == existingRecord.facilityName
-        )
+        isSignedIn() &&
+        existingRecord.facilityId is string &&
+        (isFacilityUser() ? existingRecord.facilityId == userFacilityId() : true) &&
+        incomingRecord.facilityId == existingRecord.facilityId
+      );
+    }
+
+    function canDeleteRecord(existingRecord) {
+      return isAdmin() || (
+        isSignedIn() &&
+        existingRecord.facilityId is string &&
+        (isFacilityUser() ? existingRecord.facilityId == userFacilityId() : true)
       );
     }
 
@@ -91,56 +123,56 @@ service cloud.firestore {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /stress_test_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /holter_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /blood_pressure_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /lung_function_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /outsource_appointments/{docId} {
-      allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if isSignedIn() && (isAdmin() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow create: if isSignedIn() && (isAdmin() || canCreateRecord(request.resource.data));
+      allow update: if isSignedIn() && (isAdmin() || isOutsourceUser() || canUpdateRecord(resource.data, request.resource.data));
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /rheumatology_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
       allow create: if isSignedIn() && canCreateRecord(request.resource.data);
       allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /outsource_reports/{docId} {
-      allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if isSignedIn() && (isAdmin() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow create: if isSignedIn() && (isAdmin() || isOutsourceUser() || canCreateRecord(request.resource.data));
+      allow update: if isSignedIn() && (isAdmin() || isOutsourceUser() || canUpdateRecord(resource.data, request.resource.data));
+      allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
   }
 }

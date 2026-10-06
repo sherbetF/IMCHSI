@@ -46,7 +46,8 @@ export type TestResultFile = {
 export type LungFunctionRequest = AppointmentRecord;
 
 export function LungFunctionAppointment() {
-  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen } = useFacility();
+  const { selectedFacility, setSelectedFacility, isAdmin, setIsModalOpen, facilityId } =
+    useFacility();
   const [activeTab, setActiveTab] = useState<"request" | "tracker">(
     isAdmin ? "tracker" : "request",
   );
@@ -116,22 +117,20 @@ export function LungFunctionAppointment() {
     }
   };
 
+  const [subStatus, setSubStatus] = useState<string>("loading");
+
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
     setLoading(true);
 
-    const unsub = subscribeToAppointments(
-      "lft",
-      selectedFacility ? selectedFacility.name : null,
-      isAdmin,
-      (data) => {
-        setRequests(data);
-        setLoading(false);
-      },
-    );
+    const unsub = subscribeToAppointments("lft", facilityId, isAdmin, (data, status) => {
+      setRequests(data);
+      if (status) setSubStatus(status);
+      setLoading(false);
+    });
 
     return () => unsub();
-  }, [selectedFacility?.name, isAdmin]);
+  }, [facilityId, isAdmin]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
@@ -217,8 +216,11 @@ export function LungFunctionAppointment() {
     const deptName = formData.department.trim();
     const combinedRef = docName ? `${docName} (${deptName})` : deptName;
 
+    const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
+
     const newReq: LungFunctionRequest = {
       id: `LFT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
       patientName: formData.patientName.trim(),
@@ -238,7 +240,13 @@ export function LungFunctionAppointment() {
     setIsCheckingDuplicate(true);
     try {
       const colRef = collection(db, "lung_function_appointments");
-      const q = query(colRef, where("mrn", "==", formData.mrn.trim()));
+      const q = isAdmin
+        ? query(colRef, where("mrn", "==", formData.mrn.trim()))
+        : query(
+            colRef,
+            where("facilityId", "==", activeFacilityId),
+            where("mrn", "==", formData.mrn.trim()),
+          );
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
@@ -1022,12 +1030,16 @@ export function LungFunctionAppointment() {
             })}
 
             {filteredRequests.length === 0 && (
-              <div className="p-12 text-center text-sm text-muted-foreground">
+              <div className="p-12 text-center text-sm text-muted-foreground space-y-2">
                 <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                <p className="mt-2">
-                  {loading
-                    ? "Loading Lung Function appointments from Firebase..."
-                    : "No appointment requests found matching your filter."}
+                <p className="mt-2 leading-relaxed">
+                  {subStatus === "authenticationRequired"
+                    ? "Historical request tracking requires authenticated facility access. Please sign in with your facility account to view appointment records."
+                    : subStatus === "permissionDenied"
+                      ? "Permission denied: Protected facility data requires authorized access."
+                      : loading
+                        ? "Loading Lung Function appointments from Firebase..."
+                        : "No appointment requests found matching your filter."}
                 </p>
               </div>
             )}

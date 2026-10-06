@@ -1,5 +1,6 @@
 import { AppointmentRecord } from "../services/firebaseAppointments";
 import { formatDisplayDateOnly, formatDisplayScheduledDate } from "./dateUtils";
+import { escapeHtml, escapeHtmlPreserveNewlines } from "./htmlSecurity";
 
 /**
  * Auto-calculates age based on Malaysian IC Number.
@@ -48,6 +49,7 @@ export function formatDateOnly(dateStr?: string): string {
 
 /**
  * Generates full HTML content matching the official HSI Echo Request Form.
+ * ALL dynamic patient and clinical inputs are safely HTML-escaped.
  */
 export function generateEchoFormHTML(req: AppointmentRecord): string {
   const isUrgent = req.urgency === "Urgent";
@@ -103,7 +105,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
 <html lang="ms">
 <head>
   <meta charset="UTF-8">
-  <title>BORANG PERMOHONAN UJIAN ${titleText} - ${req.patientName}</title>
+  <title>BORANG PERMOHONAN UJIAN ${escapeHtml(titleText)} - ${escapeHtml(req.patientName)}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -273,7 +275,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   <div class="text-center header-text-2">Hospital Sultan Ismail, Johor bahru</div>
 
   <!-- Document Title -->
-  <div class="doc-title">BORANG PERMOHONAN UJIAN ${titleText}.</div>
+  <div class="doc-title">BORANG PERMOHONAN UJIAN ${escapeHtml(titleText)}.</div>
 
   <!-- Urgency Checklist -->
   <div class="urgency-row">
@@ -294,33 +296,33 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
     <tr>
       <td style="width: 50%;">
         <span class="label">NAMA PESAKIT:</span>
-        <span class="val font-bold">${req.patientName || ""}</span>
+        <span class="val font-bold">${escapeHtml(req.patientName)}</span>
       </td>
       <td style="width: 50%;">
         <span class="label">NO K.P / PASSPORT :</span>
-        <span class="val font-bold">${req.mrn || ""}</span>
+        <span class="val font-bold">${escapeHtml(req.mrn)}</span>
       </td>
     </tr>
     <tr>
       <td>
         <span class="label">UMUR:</span>
-        <span class="val">${age !== "N/A" ? age : ""}</span>
+        <span class="val">${escapeHtml(age !== "N/A" ? age : "")}</span>
       </td>
       <td>
         <span class="label">JANTINA:</span>
-        <span class="val">${gender !== "N/A" ? gender : ""}</span>
+        <span class="val">${escapeHtml(gender !== "N/A" ? gender : "")}</span>
       </td>
     </tr>
     <tr>
       <td colspan="2">
         <span class="label">HOSPITAL / KLINIK:</span>
-        <span class="val">${req.facilityName || ""}</span>
+        <span class="val">${escapeHtml(req.facilityName)}</span>
       </td>
     </tr>
     <tr>
       <td colspan="2" style="padding-top: 6px;">
         <span class="label">Clinical Finding :</span>
-        <span class="val">${req.clinicalIndication || ""}</span>
+        <span class="val">${escapeHtmlPreserveNewlines(req.clinicalIndication)}</span>
       </td>
     </tr>
   </table>
@@ -331,12 +333,12 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
     <tr>
       <td colspan="2">
         <span class="label">${isRheumatology ? "Impression" : "Diagnosis"}:</span>
-        <span class="val">${req.diagnosis || ""}</span>
+        <span class="val">${escapeHtmlPreserveNewlines(req.diagnosis)}</span>
       </td>
     </tr>
     <tr>
       <td colspan="2">
-        <span class="label">${lastDoneLabel}</span>
+        <span class="label">${escapeHtml(lastDoneLabel)}</span>
         <span class="val"></span>
       </td>
     </tr>
@@ -355,7 +357,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
     <tr>
       <td colspan="2">
         <span class="label">Indication:</span>
-        <span class="val">${req.clinicalIndication || ""}</span>
+        <span class="val">${escapeHtmlPreserveNewlines(req.clinicalIndication)}</span>
       </td>
     </tr>
   </table>
@@ -365,7 +367,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   <!-- Doctor Section -->
   <div class="row-space">
     <span class="label">Pegawai Perubatan yang memohon:</span>
-    <span class="val font-bold">${req.referringDoctor || ""}</span>
+    <span class="val font-bold">${escapeHtml(req.referringDoctor)}</span>
   </div>
 
   <div class="gap-v"></div>
@@ -378,7 +380,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
       </td>
       <td style="width: 35%;">
         <span class="label">Tarikh:</span>
-        <span class="val font-bold">${requestDate}</span>
+        <span class="val font-bold">${escapeHtml(requestDate)}</span>
       </td>
     </tr>
   </table>
@@ -396,7 +398,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
 
   <div class="row-space">
     <span class="label">Tarikh dan masa ujian yang ditetapkan:</span>
-    <span class="val font-bold">${scheduledDateFull}</span>
+    <span class="val font-bold">${escapeHtml(scheduledDateFull)}</span>
   </div>
 
   <div class="gap-v"></div>
@@ -409,7 +411,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
       </td>
       <td style="width: 30%; vertical-align: bottom;">
         <span class="label">Tarikh:</span>
-        <span class="val font-bold">${scheduledDateOnly}</span>
+        <span class="val font-bold">${escapeHtml(scheduledDateOnly)}</span>
       </td>
     </tr>
   </table>
@@ -426,6 +428,11 @@ export function viewEchoReportInNewTab(req: AppointmentRecord): void {
   const htmlContent = generateEchoFormHTML(req);
   const pdfWindow = window.open("", "_blank");
   if (pdfWindow) {
+    try {
+      pdfWindow.opener = null;
+    } catch {
+      // ignore
+    }
     pdfWindow.document.write(htmlContent);
     pdfWindow.document.close();
     pdfWindow.focus();
@@ -439,6 +446,11 @@ export function downloadEchoPDFForm(req: AppointmentRecord): void {
   const htmlContent = generateEchoFormHTML(req);
   const pdfWindow = window.open("", "_blank");
   if (pdfWindow) {
+    try {
+      pdfWindow.opener = null;
+    } catch {
+      // ignore
+    }
     pdfWindow.document.write(htmlContent);
     pdfWindow.document.close();
     pdfWindow.focus();
