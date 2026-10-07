@@ -6,8 +6,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { FacilityProvider, useFacility } from "@/context/FacilityContext";
 import { FacilitySelectModal } from "@/components/hospital/FacilitySelectModal";
 import { FacilityPasswordChangeScreen } from "@/components/facility/FacilityPasswordChangeScreen";
-import { Toaster } from "@/components/ui/sonner";
 import { MaintenanceNotice } from "@/components/MaintenanceNotice";
+import { Toaster } from "@/components/ui/sonner";
 import { getFacilityPasswordGateState } from "@/utils/facilityPasswordSecurity";
 
 function NotFoundComponent() {
