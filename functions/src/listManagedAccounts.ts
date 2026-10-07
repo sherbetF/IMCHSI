@@ -1,7 +1,7 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { CANONICAL_FACILITIES } from "./canonicalFacilities.js";
 import { MANAGED_STAFF_ACCOUNTS } from "./managedStaffAccounts.js";
 import {
@@ -213,17 +213,35 @@ export const listManagedAccounts = onCall(
           warningCount++;
         } else if (authUser.disabled || profile.active === false) {
           status = "INACTIVE";
-          statusDetails = "Paramedic / Nurse account exists and is inactive.";
+          statusDetails = "Paramedic account exists and is inactive.";
           inactiveStaff++;
         } else {
           status = "ACTIVE";
-          statusDetails = "Paramedic / Nurse account exists and is active.";
+          statusDetails = "Paramedic account exists and is active.";
           activeStaff++;
         }
       } else if (authUser !== null && profile === null) {
-        status = "PARTIAL_MISSING_PROFILE";
-        statusDetails = "Firebase Auth user exists but trusted Firestore profile is missing.";
-        warningCount++;
+        try {
+          await db.collection("users").doc(authUser.uid).set({
+            role: staffDef.role,
+            accountKey: staffDef.accountKey,
+            displayName: staffDef.displayName,
+            active: !authUser.disabled,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          status = authUser.disabled ? "INACTIVE" : "ACTIVE";
+          statusDetails = authUser.disabled
+            ? "Repaired missing profile (account is currently inactive)."
+            : "Repaired missing profile (account is active).";
+          if (authUser.disabled) inactiveStaff++;
+          else activeStaff++;
+        } catch (repairErr) {
+          console.error("Failed to auto-repair missing staff profile:", repairErr);
+          status = "PARTIAL_MISSING_PROFILE";
+          statusDetails = "Firebase Auth user exists but trusted Firestore profile is missing.";
+          warningCount++;
+        }
       } else if (authUser === null && profile !== null) {
         status = "PARTIAL_MISSING_AUTH";
         statusDetails = "Trusted Firestore profile exists but Firebase Auth user is missing.";

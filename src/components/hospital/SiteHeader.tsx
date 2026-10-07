@@ -148,12 +148,7 @@ export function SiteHeader() {
   const filteredNav = [
     ...nav,
     ...(isAdmin ? [{ label: "Account Manager", to: "/admin-facilities" as const }] : []),
-  ].filter((item) => {
-    if (item.to === "/outsource" && selectedFacility && !isAdmin) {
-      return false;
-    }
-    return true;
-  });
+  ];
 
   return (
     <header>
@@ -235,22 +230,32 @@ export function SiteHeader() {
                 );
               }
 
-              if (item.to === "/outsource") {
+              // Admin-only modules from Hospital navigation: Outsource & Rheumatology
+              if (item.to === "/outsource" || item.to === "/rheumatology") {
+                if (!isAdmin) {
+                  return (
+                    <span
+                      key={item.label}
+                      className="text-sm font-medium text-muted-foreground/40 cursor-not-allowed select-none inline-flex items-center"
+                      title={`${item.label} (Admin Access Only)`}
+                      aria-disabled="true"
+                    >
+                      {item.label}
+                    </span>
+                  );
+                }
+
                 return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      if (!isOutsourceAuthenticated && !isAdmin) {
-                        openOutsourceAuth(() => navigate({ to: "/outsource" }));
-                      } else {
-                        navigate({ to: "/outsource" });
-                      }
-                    }}
-                    className="text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer"
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    activeOptions={{ exact: true }}
+                    activeProps={{ className: "text-primary font-semibold" }}
+                    inactiveProps={{ className: "text-foreground" }}
+                    className="text-sm transition-colors hover:text-primary cursor-pointer"
                   >
                     {item.label}
-                  </button>
+                  </Link>
                 );
               }
 
@@ -271,13 +276,13 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-3">
             {!selectedFacility ? (
-              /* Admin Login Button on Main Landing Page upon opening website */
+              /* Hospital Staff Access Button on Main Landing Page upon opening website */
               <button
                 type="button"
                 onClick={() => openModal("admin")}
                 className="relative flex h-9 w-9 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary transition-all shadow-sm"
-                title="Hospital Admin Login"
-                aria-label="Admin Login"
+                title="Hospital Staff Access"
+                aria-label="Hospital Staff Access"
               >
                 <ShieldCheck className="h-4 w-4" />
               </button>
@@ -286,9 +291,7 @@ export function SiteHeader() {
               <div
                 className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/30 transition-all shadow-sm"
                 title={
-                  isAdmin
-                    ? "Hospital Admin (Logged In) • Click to manage"
-                    : "Paramedic / Nurse (Logged In)"
+                  isAdmin ? "Hospital Admin (Logged In) • Click to manage" : "Paramedic (Logged In)"
                 }
               >
                 {isAdmin ? (
@@ -517,23 +520,33 @@ export function SiteHeader() {
                 );
               }
 
-              if (item.to === "/outsource") {
+              // Admin-only modules from Hospital navigation: Outsource & Rheumatology
+              if (item.to === "/outsource" || item.to === "/rheumatology") {
+                if (!isAdmin) {
+                  return (
+                    <span
+                      key={item.label}
+                      className="block w-full py-2 px-3 text-sm font-medium rounded-lg text-muted-foreground/40 cursor-not-allowed select-none"
+                      title={`${item.label} (Admin Access Only)`}
+                      aria-disabled="true"
+                    >
+                      {item.label}
+                    </span>
+                  );
+                }
+
                 return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      if (!isOutsourceAuthenticated && !isAdmin) {
-                        openOutsourceAuth(() => navigate({ to: "/outsource" }));
-                      } else {
-                        navigate({ to: "/outsource" });
-                      }
-                    }}
-                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg text-foreground hover:bg-surface transition-colors cursor-pointer"
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    activeOptions={{ exact: true }}
+                    activeProps={{ className: "bg-primary/10 text-primary font-semibold" }}
+                    inactiveProps={{ className: "text-foreground" }}
+                    className="block w-full text-left py-2 px-3 text-sm font-medium rounded-lg hover:bg-accent hover:text-primary transition-colors cursor-pointer"
                   >
                     {item.label}
-                  </button>
+                  </Link>
                 );
               }
 

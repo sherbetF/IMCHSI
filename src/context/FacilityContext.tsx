@@ -173,7 +173,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setSelectedFacilityState({
               facilityId: "paramedic_nurse",
               category: "Hospital",
-              name: userData.displayName || "Paramedic / Nurse",
+              name: userData.displayName || "Paramedic",
             });
             setIsOutsourceAuthenticated(false);
           } else if (userData.role === "doctor") {

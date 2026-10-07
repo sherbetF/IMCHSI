@@ -162,8 +162,9 @@ export const createManagedAccount = onCall(
 
       // Check Auth and Firestore
       let authUserExists = false;
+      let existingAuthUser: any = null;
       try {
-        await auth.getUserByEmail(staffDef.email);
+        existingAuthUser = await auth.getUserByEmail(staffDef.email);
         authUserExists = true;
       } catch (err: unknown) {
         const e = err as { code?: string };
@@ -177,7 +178,7 @@ export const createManagedAccount = onCall(
       if (profilesQuery.docs.length > 1) {
         throw new HttpsError(
           "failed-precondition",
-          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic/Nurse role. Manual resolution required.",
+          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic role. Manual resolution required.",
         );
       }
 
@@ -186,14 +187,47 @@ export const createManagedAccount = onCall(
       if (authUserExists && profileExists) {
         throw new HttpsError(
           "already-exists",
-          "ACCOUNT_ALREADY_EXISTS: Paramedic / Nurse account is already provisioned.",
+          "ACCOUNT_ALREADY_EXISTS: Paramedic account is already provisioned.",
         );
+      }
+
+      if (authUserExists && !profileExists) {
+        const authUser = existingAuthUser!;
+        await db.collection("users").doc(authUser.uid).set({
+          role: staffDef.role,
+          accountKey: staffDef.accountKey,
+          displayName: staffDef.displayName,
+          active: true,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        if (authUser.disabled) {
+          await auth.updateUser(authUser.uid, { disabled: false });
+        }
+        await recordAdminAuditLog(db, {
+          action: "ACCOUNT_CREATED",
+          adminUid: callerUid,
+          targetRole: "paramedic_nurse",
+          targetAccountType: "PARAMEDIC_NURSE",
+          targetIdentifier: staffDef.accountKey,
+          success: true,
+          notes: "Repaired missing profile and activated centralized Paramedic account",
+        });
+        return {
+          success: true,
+          message:
+            "Successfully repaired missing profile and activated centralized Paramedic account.",
+          accountType: "PARAMEDIC_NURSE",
+          identifier: staffDef.accountKey,
+          status: "ACTIVE",
+          auditLogged: true,
+        };
       }
 
       if (authUserExists || profileExists) {
         throw new HttpsError(
           "failed-precondition",
-          "PARTIAL_ACCOUNT: Inconsistent account state detected for Paramedic / Nurse. Manual review required.",
+          "PARTIAL_ACCOUNT: Inconsistent account state detected for Paramedic. Manual review required.",
         );
       }
 
@@ -243,12 +277,12 @@ export const createManagedAccount = onCall(
         targetAccountType: "PARAMEDIC_NURSE",
         targetIdentifier: staffDef.accountKey,
         success: true,
-        notes: "Created centralized Paramedic / Nurse account",
+        notes: "Created centralized Paramedic account",
       });
 
       return {
         success: true,
-        message: "Successfully created centralized Paramedic / Nurse account.",
+        message: "Successfully created centralized Paramedic account.",
         accountType: "PARAMEDIC_NURSE",
         identifier: staffDef.accountKey,
         status: "ACTIVE",

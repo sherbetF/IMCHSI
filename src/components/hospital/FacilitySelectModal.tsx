@@ -63,7 +63,9 @@ export function FacilitySelectModal() {
 
   // Staff auth state
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
-  const [staffType, setStaffType] = useState<"admin" | "paramedic_nurse" | "doctor">("admin");
+  const [staffType, setStaffType] = useState<"admin" | "paramedic_nurse" | "doctor">(
+    "paramedic_nurse",
+  );
   const [doctorIdInput, setDoctorIdInput] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -90,11 +92,13 @@ export function FacilitySelectModal() {
       setAdminPassword("");
       setDoctorIdInput("");
       setAuthError("");
+      setStaffType("paramedic_nurse");
     } else {
       if (modalStep === "admin") {
         setAuthError("");
         setIsFacilityLoginOpen(false);
         setIsAdminAuthOpen(true);
+        setStaffType("paramedic_nurse");
       } else {
         setIsAdminAuthOpen(false);
       }
@@ -349,7 +353,7 @@ export function FacilitySelectModal() {
         setSelectedFacility({
           facilityId: "paramedic_nurse",
           category: "Hospital",
-          name: data.displayName || "Paramedic / Nurse",
+          name: data.displayName || "Paramedic",
         });
       } else {
         setSelectedFacility({
@@ -533,9 +537,22 @@ export function FacilitySelectModal() {
           <div className="flex flex-col">
             <div className="border-b border-border bg-surface p-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffType("admin");
+                    setAuthError("");
+                  }}
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all cursor-pointer shrink-0 ${
+                    staffType === "admin"
+                      ? "bg-amber-500/25 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/50 shadow-xs scale-105"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:scale-105"
+                  }`}
+                  title="Administrator Access"
+                  aria-label="Administrator Access"
+                >
                   <ShieldCheck className="h-5 w-5" />
-                </span>
+                </button>
                 <div>
                   <h2 className="text-base font-bold text-heading">Hospital Staff Access</h2>
                   <p className="text-xs text-muted-foreground">
@@ -559,47 +576,32 @@ export function FacilitySelectModal() {
             </div>
 
             <form onSubmit={handleAdminLogin} className="p-6 space-y-5">
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
-                <div className="flex items-center gap-2 text-sm font-bold text-heading">
-                  <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <h3>Internal Medicine Staff Access</h3>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Enter your credentials to manage referral requests and scheduling.
-                </p>
-              </div>
-
-              {/* Staff Type Selector */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Staff Type Selector — ONLY Paramedic and Doctor */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setStaffType("admin")}
-                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
-                    staffType === "admin"
-                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                      : "border-border bg-surface text-muted-foreground hover:border-amber-500/30"
-                  }`}
-                >
-                  Administrator
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStaffType("paramedic_nurse")}
-                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
+                  onClick={() => {
+                    setStaffType("paramedic_nurse");
+                    setAuthError("");
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
                     staffType === "paramedic_nurse"
-                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                      : "border-border bg-surface text-muted-foreground hover:border-amber-500/30"
+                      ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 shadow-xs"
+                      : "border-border bg-surface text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
                   }`}
                 >
-                  Paramedic / Nurse
+                  Paramedic
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStaffType("doctor")}
-                  className={`rounded-lg border px-2.5 py-2 text-xs font-bold transition-all ${
+                  onClick={() => {
+                    setStaffType("doctor");
+                    setAuthError("");
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
                     staffType === "doctor"
-                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400"
-                      : "border-border bg-surface text-muted-foreground hover:border-blue-500/30"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400 shadow-xs"
+                      : "border-border bg-surface text-muted-foreground hover:border-blue-500/30 hover:text-foreground"
                   }`}
                 >
                   Doctor

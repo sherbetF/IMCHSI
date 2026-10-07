@@ -274,4 +274,35 @@ describe("Stage 7 — Account Manager Callable Authorization & Security Specific
       expect(SYNTHETIC_IDENTITIES.PARAMEDIC_ACTIVE.accountKey).toBe(canonicalKey);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 8. Opaque Doctor Login Selector & Pre-Auth Resolution Specification
+  // --------------------------------------------------------------------------
+  describe("Opaque Doctor LoginKey Selector Specification", () => {
+    it("exports listActiveDoctors and resolveDoctorLoginTarget callables", async () => {
+      const functionsIndex = await import("../../functions/src/index.js");
+      expect(functionsIndex.listActiveDoctors).toBeDefined();
+      expect(functionsIndex.resolveDoctorLoginTarget).toBeDefined();
+      expect(functionsIndex.generateDoctorLoginKey).toBeDefined();
+    });
+
+    it("generates opaque doc_sel_ formatted keys that never expose canonical doctorId", async () => {
+      const { generateDoctorLoginKey } = await import("../../functions/src/doctorLoginHelper.js");
+      const key1 = generateDoctorLoginKey("dr_rheum_ABC123");
+      const key2 = generateDoctorLoginKey("dr_rheum_XYZ999");
+
+      expect(key1).toMatch(/^doc_sel_[a-f0-9]{24}$/);
+      expect(key2).toMatch(/^doc_sel_[a-f0-9]{24}$/);
+      expect(key1).not.toContain("dr_rheum");
+      expect(key2).not.toContain("dr_rheum");
+      expect(key1).not.toBe(key2);
+    });
+
+    it("ensures generateDoctorLoginKey is deterministic across calls for same ID", async () => {
+      const { generateDoctorLoginKey } = await import("../../functions/src/doctorLoginHelper.js");
+      const keyA1 = generateDoctorLoginKey("dr_rheum_ABC123");
+      const keyA2 = generateDoctorLoginKey("dr_rheum_ABC123");
+      expect(keyA1).toBe(keyA2);
+    });
+  });
 });

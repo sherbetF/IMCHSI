@@ -9,6 +9,8 @@ import {
   reserveRheumatologyAttachmentSlot,
   releaseRheumatologyAttachmentSlot,
 } from "./rheumatologyAttachmentReservation.js";
+import { listActiveDoctors } from "./listActiveDoctors.js";
+import { resolveDoctorLoginTarget } from "./resolveDoctorLoginTarget.js";
 
 export {
   listFacilityAccounts,
@@ -20,6 +22,8 @@ export {
   validateManagedPassword,
   reserveRheumatologyAttachmentSlot,
   releaseRheumatologyAttachmentSlot,
+  listActiveDoctors,
+  resolveDoctorLoginTarget,
 };
 
 export * from "./accountTypes.js";
@@ -28,3 +32,4 @@ export * from "./managedStaffAccounts.js";
 export * from "./passwordValidator.js";
 export * from "./adminAuthHelper.js";
 export * from "./rheumatologyAttachmentReservation.js";
+export * from "./doctorLoginHelper.js";

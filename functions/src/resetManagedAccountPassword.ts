@@ -178,10 +178,7 @@ export const resetManagedAccountPassword = onCall(
     } else if (data.accountType === "PARAMEDIC_NURSE") {
       const accountKey = data.accountKey;
       if (accountKey !== PARAMEDIC_NURSE_ACCOUNT.accountKey) {
-        throw new HttpsError(
-          "invalid-argument",
-          "UNKNOWN_ACCOUNT: Unknown Paramedic / Nurse accountKey.",
-        );
+        throw new HttpsError("invalid-argument", "UNKNOWN_ACCOUNT: Unknown Paramedic accountKey.");
       }
 
       const staffDef = PARAMEDIC_NURSE_ACCOUNT;
@@ -194,7 +191,7 @@ export const resetManagedAccountPassword = onCall(
         if (e.code === "auth/user-not-found") {
           throw new HttpsError(
             "not-found",
-            "ACCOUNT_NOT_CREATED: Paramedic / Nurse Auth account does not exist.",
+            "ACCOUNT_NOT_CREATED: Paramedic Auth account does not exist.",
           );
         }
         throw new HttpsError("internal", "INTERNAL_OPERATION_FAILED: Auth check failed.");
@@ -205,15 +202,20 @@ export const resetManagedAccountPassword = onCall(
       if (profilesQuery.docs.length > 1) {
         throw new HttpsError(
           "failed-precondition",
-          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic/Nurse role.",
+          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic role.",
         );
       }
 
       if (profilesQuery.docs.length === 0) {
-        throw new HttpsError(
-          "failed-precondition",
-          "PARTIAL_ACCOUNT: Paramedic / Nurse profile missing.",
-        );
+        // Auto-heal missing profile for Auth user
+        await db.collection("users").doc(authUser.uid).set({
+          role: staffDef.role,
+          accountKey: staffDef.accountKey,
+          displayName: staffDef.displayName,
+          active: !authUser.disabled,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       }
 
       const profileDoc = profilesQuery.docs[0]!;
@@ -269,7 +271,7 @@ export const resetManagedAccountPassword = onCall(
         targetAccountType: "PARAMEDIC_NURSE",
         targetIdentifier: staffDef.accountKey,
         success: true,
-        notes: "Reset password for Paramedic / Nurse account",
+        notes: "Reset password for Paramedic account",
       });
 
       const currentStatus =
@@ -277,7 +279,7 @@ export const resetManagedAccountPassword = onCall(
 
       return {
         success: true,
-        message: `Successfully reset password for Paramedic / Nurse. (Account remains ${currentStatus})`,
+        message: `Successfully reset password for Paramedic. (Account remains ${currentStatus})`,
         accountType: "PARAMEDIC_NURSE",
         identifier: staffDef.accountKey,
         status: currentStatus,

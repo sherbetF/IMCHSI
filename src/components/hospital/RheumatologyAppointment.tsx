@@ -31,7 +31,9 @@ import {
   Paperclip,
   Upload,
   Image as ImageIcon,
+  Lock,
 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
 import {
@@ -115,6 +117,7 @@ function formatDisplayDateOnly(val: unknown): string {
 }
 
 export function RheumatologyAppointment() {
+  const navigate = useNavigate();
   const {
     selectedFacility,
     isAdmin,
@@ -123,6 +126,7 @@ export function RheumatologyAppointment() {
     userRole,
     facilityId,
     setIsModalOpen,
+    openModal,
   } = useFacility();
 
   // Unified Subscription Data
@@ -262,6 +266,10 @@ export function RheumatologyAppointment() {
   // Real-Time Trusted Subscription
   // -------------------------------------------------------------
   useEffect(() => {
+    if (!isAdmin && !isDoctor) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const unsub = subscribeToRheumatologyReferrals((data, status) => {
       setReferrals(data);
@@ -770,6 +778,44 @@ export function RheumatologyAppointment() {
         );
     }
   };
+
+  // Direct-Route Protection: Access to Rheumatology from Hospital navigation is restricted to authenticated Admin.
+  // Authorized Rheumatology Doctors access their dedicated workflow.
+  if (!isAdmin && !isDoctor) {
+    return (
+      <section className="mx-auto max-w-[1200px] px-5 pt-16 pb-20 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center space-y-5 shadow-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto">
+            <Lock className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-heading">Administrator Access Required</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Access to the Rheumatology module from Hospital navigation is restricted to authorized
+              Administrators. Authorized Rheumatology Doctors may access via Hospital Staff Access.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+            <button
+              type="button"
+              onClick={() => openModal("admin")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Hospital Staff Access</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/" })}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-xs font-semibold text-foreground hover:bg-background transition-colors cursor-pointer"
+            >
+              <span>Back to Home</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   // -------------------------------------------------------------
   // RENDER: Role-Aware Portal UI

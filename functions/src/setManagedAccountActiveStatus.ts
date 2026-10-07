@@ -188,10 +188,7 @@ export const setManagedAccountActiveStatus = onCall(
     } else if (data.accountType === "PARAMEDIC_NURSE") {
       const accountKey = data.accountKey;
       if (accountKey !== PARAMEDIC_NURSE_ACCOUNT.accountKey) {
-        throw new HttpsError(
-          "invalid-argument",
-          "UNKNOWN_ACCOUNT: Unknown Paramedic / Nurse accountKey.",
-        );
+        throw new HttpsError("invalid-argument", "UNKNOWN_ACCOUNT: Unknown Paramedic accountKey.");
       }
 
       const staffDef = PARAMEDIC_NURSE_ACCOUNT;
@@ -204,7 +201,7 @@ export const setManagedAccountActiveStatus = onCall(
         if (e.code === "auth/user-not-found") {
           throw new HttpsError(
             "not-found",
-            "ACCOUNT_NOT_CREATED: Paramedic / Nurse account does not exist in Auth.",
+            "ACCOUNT_NOT_CREATED: Paramedic account does not exist in Auth.",
           );
         }
         throw new HttpsError("internal", "INTERNAL_OPERATION_FAILED: Auth check failed.");
@@ -215,15 +212,12 @@ export const setManagedAccountActiveStatus = onCall(
       if (profilesQuery.docs.length > 1) {
         throw new HttpsError(
           "failed-precondition",
-          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic/Nurse role.",
+          "ACCOUNT_CONFLICT: Multiple profiles claim Paramedic role.",
         );
       }
 
       if (profilesQuery.docs.length === 0) {
-        throw new HttpsError(
-          "failed-precondition",
-          "PARTIAL_ACCOUNT: Paramedic / Nurse profile missing.",
-        );
+        throw new HttpsError("failed-precondition", "PARTIAL_ACCOUNT: Paramedic profile missing.");
       }
 
       const profileDoc = profilesQuery.docs[0]!;
@@ -260,10 +254,7 @@ export const setManagedAccountActiveStatus = onCall(
 
       const currentlyActive = profileData["active"] === true && !authUser.disabled;
       if (targetActive && currentlyActive) {
-        throw new HttpsError(
-          "already-exists",
-          "ALREADY_ACTIVE: Paramedic / Nurse is already active.",
-        );
+        throw new HttpsError("already-exists", "ALREADY_ACTIVE: Paramedic is already active.");
       }
       if (
         !targetActive &&
@@ -271,10 +262,7 @@ export const setManagedAccountActiveStatus = onCall(
         profileData["active"] === false &&
         authUser.disabled
       ) {
-        throw new HttpsError(
-          "already-exists",
-          "ALREADY_DISABLED: Paramedic / Nurse is already disabled.",
-        );
+        throw new HttpsError("already-exists", "ALREADY_DISABLED: Paramedic is already disabled.");
       }
 
       // Step 1: Update Auth state
@@ -323,12 +311,12 @@ export const setManagedAccountActiveStatus = onCall(
         targetAccountType: "PARAMEDIC_NURSE",
         targetIdentifier: staffDef.accountKey,
         success: true,
-        notes: `${targetActive ? "Reactivated" : "Disabled"} Paramedic / Nurse account`,
+        notes: `${targetActive ? "Reactivated" : "Disabled"} Paramedic account`,
       });
 
       return {
         success: true,
-        message: `Successfully ${targetActive ? "reactivated" : "disabled"} Paramedic / Nurse account.`,
+        message: `Successfully ${targetActive ? "reactivated" : "disabled"} Paramedic account.`,
         accountType: "PARAMEDIC_NURSE",
         identifier: staffDef.accountKey,
         status: targetActive ? "ACTIVE" : "INACTIVE",

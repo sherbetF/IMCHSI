@@ -117,6 +117,7 @@ export function OutsourceAppointment() {
     setSelectedFacility,
     isAdmin,
     setIsModalOpen,
+    openModal,
     isOutsourceAuthenticated,
     openOutsourceAuth,
     facilityId,
@@ -187,6 +188,11 @@ export function OutsourceAppointment() {
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
+    if (!isAdmin && !isOutsourceAuthenticated) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const scope: AppointmentReadScope = isAdmin
@@ -200,7 +206,7 @@ export function OutsourceAppointment() {
     });
 
     return () => unsub();
-  }, [facilityId, isAdmin]);
+  }, [facilityId, isAdmin, isOutsourceAuthenticated]);
 
   // Switch to tracker tab automatically when in admin mode
   useEffect(() => {
@@ -542,14 +548,22 @@ export function OutsourceAppointment() {
               external service providers and Hospital Sultan Ismail administrators.
             </p>
           </div>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
             <button
               type="button"
               onClick={() => openOutsourceAuth()}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
             >
               <ShieldCheck className="h-4 w-4" />
               <span>Sign In as Outsource Provider</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openModal("admin")}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-xs font-semibold text-foreground hover:bg-background transition-colors cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Hospital Staff Access</span>
             </button>
           </div>
         </div>

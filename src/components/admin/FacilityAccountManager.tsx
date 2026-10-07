@@ -26,6 +26,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { useFacility } from "@/context/FacilityContext";
+import { AdminChangePasswordModal } from "./AdminChangePasswordModal";
 import { toast } from "sonner";
 
 export type ManagedAccountStatus =
@@ -158,6 +159,7 @@ interface TargetAccountSelection {
 
 export function FacilityAccountManager() {
   const { isAdmin } = useFacility();
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
   const [data, setData] = useState<ListManagedAccountsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -669,13 +671,21 @@ export function FacilityAccountManager() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Facility Account Manager</h1>
               <p className="text-sm text-slate-500">
-                Centralized account management for Consumer Facilities and Paramedic / Nurse roles
+                Centralized account management for Consumer Facilities and Paramedic roles
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsChangePasswordOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-900 bg-amber-500/10 border border-amber-500/30 rounded-xl hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-2xs cursor-pointer"
+          >
+            <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            Change My Password
+          </button>
           <button
             type="button"
             onClick={() => (window.location.href = "/")}
@@ -717,9 +727,7 @@ export function FacilityAccountManager() {
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">
-              Paramedic / Nurse
-            </p>
+            <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Paramedic</p>
             <p className="text-2xl font-bold text-blue-700 mt-1">
               {data.summary.activeStaff} / {data.summary.totalStaff}
             </p>
@@ -757,19 +765,6 @@ export function FacilityAccountManager() {
         </div>
       )}
 
-      {/* Password Policy Banner */}
-      <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 text-sm text-blue-950 flex items-start gap-3 shadow-2xs">
-        <Lock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <div className="space-y-0.5">
-          <p className="font-semibold text-blue-950">Managed Password Policy</p>
-          <p className="text-blue-800 text-xs leading-relaxed">
-            Minimum <strong>8 characters</strong>. Must contain at least <strong>one letter</strong>{" "}
-            and <strong>one number</strong>. Passwords are case-sensitive and never stored in plain
-            text or logged.
-          </p>
-        </div>
-      </div>
-
       {/* Role Navigation Tabs */}
       <div className="flex border-b border-slate-200 gap-2 overflow-x-auto pb-0">
         <button
@@ -798,7 +793,7 @@ export function FacilityAccountManager() {
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Paramedic / Nurse</span>
+          <span>Paramedic</span>
           <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
             {data?.summary.totalStaff ?? 1}
           </span>
@@ -964,7 +959,7 @@ export function FacilityAccountManager() {
             <div className="flex items-center gap-2.5">
               <Users className="w-5 h-5 text-blue-600" />
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Paramedic / Nurse Account</h2>
+                <h2 className="text-lg font-bold text-slate-900">Paramedic Account</h2>
                 <p className="text-xs text-slate-500">
                   Centralized scheduling role responsible for all facility appointments
                 </p>
@@ -992,7 +987,7 @@ export function FacilityAccountManager() {
                         {getStatusBadge(s.status)}
                       </div>
                       <p className="text-xs font-mono text-slate-500 mt-0.5">
-                        Key: {s.accountKey} • Role: Paramedic / Nurse
+                        Key: {s.accountKey} • Role: Paramedic
                       </p>
                       <p className="text-xs text-slate-600 mt-1">{s.statusDetails}</p>
                     </div>
@@ -1793,6 +1788,12 @@ export function FacilityAccountManager() {
           </div>
         </div>
       )}
+
+      {/* Admin Self-Service Change Password Modal */}
+      <AdminChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
     </div>
   );
 }

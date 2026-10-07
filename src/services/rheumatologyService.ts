@@ -840,7 +840,7 @@ export async function scheduleRheumatologyAppointments(
       doctorAppointmentDate: doctorDate,
       bloodTakingDate: bloodDate, // Set to Timestamp or null
       scheduledByUid: caller.uid,
-      scheduledByNameSnapshot: caller.displayName || "Paramedic / Nurse",
+      scheduledByNameSnapshot: caller.displayName || "Paramedic",
       scheduledAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -908,7 +908,7 @@ export async function rescheduleRheumatologyAppointments(
       doctorAppointmentDate: doctorDate,
       bloodTakingDate: bloodDate, // Explicitly writes null if cleared, removing prior date
       scheduledByUid: caller.uid,
-      scheduledByNameSnapshot: caller.displayName || "Paramedic / Nurse",
+      scheduledByNameSnapshot: caller.displayName || "Paramedic",
       updatedAt: serverTimestamp(),
     };
 

@@ -17,7 +17,7 @@ export interface ManagedStaffDefinition {
 export const PARAMEDIC_NURSE_ACCOUNT: ManagedStaffDefinition = {
   accountKey: "paramedic_nurse_main",
   role: "paramedic_nurse",
-  displayName: "Paramedic / Nurse",
+  displayName: "Paramedic",
   email: "staff_paramedic_nurse@auth.local",
   description: "Centralized appointment scheduling across all facilities",
 };
