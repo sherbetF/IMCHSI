@@ -31,7 +31,7 @@ import {
   Timestamp,
   Unsubscribe,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytes, getBlob, deleteObject } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { db, auth, storage, functions } from "@/lib/firebase";
 
@@ -433,15 +433,16 @@ export function subscribeToRheumatologyAttachments(
 }
 
 /**
- * Obtains a temporary download URL for viewing or downloading an attachment.
- * Resolves storagePath from trusted Firestore metadata (never trusts caller-supplied path).
+ * Hardened Attachment Access Service (Issue 1C)
+ * Retrieves the raw document Blob directly through authenticated Firebase Storage SDK.
+ * Does NOT generate, return, or log persistent Firebase Storage download tokens (?alt=media&token=...).
  * Allowed roles: Facility (own referral only), Doctor, Admin.
  * Paramedic and Outsource roles are forbidden.
  */
-export async function getRheumatologyAttachmentDownloadUrl(
+export async function getRheumatologyAttachmentBlob(
   referralDocumentId: string,
   attachmentId: string,
-): Promise<string> {
+): Promise<Blob> {
   const caller = await getValidatedCaller();
 
   if (caller.role === "paramedic_nurse") {
@@ -511,13 +512,27 @@ export async function getRheumatologyAttachmentDownloadUrl(
 
   try {
     const fileRef = ref(storage, trustedStoragePath);
-    const url = await getDownloadURL(fileRef);
-    return url;
-  } catch (err) {
-    console.error("Failed to generate download URL:", err);
+    return await getBlob(fileRef);
+  } catch (err: unknown) {
+    const firebaseErr = err as { code?: string; message?: string };
+    if (
+      firebaseErr?.code === "storage/unauthorized" ||
+      firebaseErr?.code === "storage/permission-denied"
+    ) {
+      throw new RheumatologyAttachmentError(
+        "PERMISSION_DENIED",
+        "Access to this clinical document was denied. Verify you have active authorization.",
+      );
+    }
+    if (firebaseErr?.code === "storage/object-not-found") {
+      throw new RheumatologyAttachmentError(
+        "STORAGE_ERROR",
+        "The requested clinical document was not found in storage.",
+      );
+    }
     throw new RheumatologyAttachmentError(
       "STORAGE_ERROR",
-      "Failed to obtain document access link. Please verify you have authorization to view this document.",
+      "Failed to retrieve clinical document. Please verify your permissions and network connection.",
     );
   }
 }

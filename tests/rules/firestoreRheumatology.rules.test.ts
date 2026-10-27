@@ -178,13 +178,24 @@ describe("Stage 7 — Firestore Security Rules Verification (Actual firestore.ru
       expect(userProfileMatch).toMatch(/allow delete:\s*if false;/);
     });
 
-    it("allows user profile update only for active status by Admin or login timestamp acknowledgment", () => {
-      expect(rulesContent).toContain(
-        "affectedKeys().hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])",
-      );
-      expect(rulesContent).toContain(
-        "affectedKeys().hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt'])",
-      );
-    });
+    it("restricts client profile updates to first-login metadata", () => {
+  const userProfileMatch = rulesContent.substring(
+    rulesContent.indexOf("match /users/{uid}"),
+    rulesContent.indexOf("match /facilities/{facilityId}"),
+  );
+
+  expect(userProfileMatch).toContain(
+    "hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt'])",
+  );
+
+  expect(userProfileMatch).not.toContain(
+    "hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])",
+  );
+
+  expect(userProfileMatch).toContain("request.auth.uid == uid");
+  expect(userProfileMatch).toContain(
+    "request.resource.data.active == resource.data.active",
+  );
+});
   });
 });

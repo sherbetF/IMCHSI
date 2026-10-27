@@ -105,6 +105,25 @@ describe("Paramedic NICL Access & Authorization Security Rules Suite", () => {
     );
   });
 
+  it("SECURITY NEGATIVE: rejects invalid scheduling values", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore({ databaseId: NAMED_DATABASE_ID } as any);
+      await db.collection("echo_appointments").doc("invalid_schedule_test").set({
+        id: "invalid_schedule_test",
+        facilityId: "TEST_FACILITY_A",
+        patientName: "Synthetic Patient",
+        mrn: "TEST-0001",
+        status: "Pending Confirmation"
+      });
+    });
+    const context = testEnv.authenticatedContext(SYNTHETIC_IDENTITIES.PARAMEDIC_ACTIVE.uid);
+    const db = context.firestore({ databaseId: NAMED_DATABASE_ID } as any);
+    await assertFails(db.collection("echo_appointments").doc("invalid_schedule_test").update({
+      status: "INVALID_STATUS",
+      scheduledDate: "NOT_A_REAL_DATE"
+    }));
+  });
+
   // --------------------------------------------------------------------------
   // Requirement 7: Paramedic CANNOT change protected patient/facility fields
   // --------------------------------------------------------------------------

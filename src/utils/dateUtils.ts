@@ -34,7 +34,7 @@ export function formatDisplayDateOnly(dateStr?: string): string {
   const trimmed = dateStr.trim();
 
   // If input has time attached, extract date part
-  const datePart = trimmed.split(" @ ")[0].split(" ")[0];
+  const datePart = trimmed.split(" @ ")[0]?.split(" ")[0] ?? "";
 
   // Already DD/MM/YYYY or D/M/YYYY
   const dmyMatch = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -172,11 +172,11 @@ export function combineDateAndTime(dateString: string, timeString: string): Date
   if (trimmedDate.includes("-")) {
     const parts = trimmedDate.split("-").map(Number);
     if (parts.length !== 3 || parts.some(isNaN)) return null;
-    [year, month, day] = parts;
+    year = parts[0]!; month = parts[1]!; day = parts[2]!;
   } else if (trimmedDate.includes("/")) {
     const parts = trimmedDate.split("/").map(Number);
     if (parts.length !== 3 || parts.some(isNaN)) return null;
-    [day, month, year] = parts;
+    day = parts[0]!; month = parts[1]!; year = parts[2]!;
   } else {
     return null;
   }
@@ -185,8 +185,8 @@ export function combineDateAndTime(dateString: string, timeString: string): Date
   const timeMatch = trimmedTime.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
   if (!timeMatch) return null;
 
-  let hours = parseInt(timeMatch[1], 10);
-  const minutes = parseInt(timeMatch[2], 10);
+  let hours = parseInt(timeMatch[1]!, 10);
+  const minutes = parseInt(timeMatch[2]!, 10);
   const modifier = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
 
   if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes > 59) {

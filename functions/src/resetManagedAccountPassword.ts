@@ -207,15 +207,10 @@ export const resetManagedAccountPassword = onCall(
       }
 
       if (profilesQuery.docs.length === 0) {
-        // Auto-heal missing profile for Auth user
-        await db.collection("users").doc(authUser.uid).set({
-          role: staffDef.role,
-          accountKey: staffDef.accountKey,
-          displayName: staffDef.displayName,
-          active: !authUser.disabled,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        throw new HttpsError(
+          "failed-precondition",
+          "PARTIAL_ACCOUNT: Paramedic profile missing. Manual administrator review required.",
+        );
       }
 
       const profileDoc = profilesQuery.docs[0]!;

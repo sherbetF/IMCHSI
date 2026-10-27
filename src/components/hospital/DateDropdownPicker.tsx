@@ -59,14 +59,14 @@ export function DateDropdownPicker({ value, onChange, required }: DateDropdownPi
       let y = "";
       if (value.includes("/")) {
         const parts = value.split("/");
-        d = pad(parts[0]);
-        m = pad(parts[1]);
-        y = parts[2];
+        d = pad(parts[0] ?? '');
+        m = pad(parts[1] ?? '');
+        y = parts[2] ?? '';
       } else if (value.includes("-")) {
         const parts = value.split("-");
-        y = parts[0];
-        m = pad(parts[1]);
-        d = pad(parts[2]);
+        y = parts[0] ?? '';
+        m = pad(parts[1] ?? '');
+        d = pad(parts[2] ?? '');
       }
       if (d && m && y) {
         setDay(d);

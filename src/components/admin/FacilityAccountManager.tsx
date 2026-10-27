@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Lock,
   UserCheck,
-  Activity,
   Filter,
   KeyRound,
   UserPlus,
@@ -157,13 +156,21 @@ interface TargetAccountSelection {
   currentStatus: ManagedAccountStatus;
 }
 
+// In-memory session cache to provide instant 0ms perceived loading on revisit
+let cachedManagedAccountsData: ListManagedAccountsResponse | null = null;
+
 export function FacilityAccountManager() {
   const { isAdmin } = useFacility();
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
-  const [data, setData] = useState<ListManagedAccountsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [data, setData] = useState<ListManagedAccountsResponse | null>(
+    () => cachedManagedAccountsData,
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(() => !cachedManagedAccountsData);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"FACILITIES" | "STAFF" | "DOCTORS">("FACILITIES");
+
+  // In-flight fetch deduplication ref to prevent duplicate calls from StrictMode or rapid re-renders
+  const isFetchingRef = React.useRef<boolean>(false);
 
   // Facility filter state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -191,6 +198,8 @@ export function FacilityAccountManager() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchManagedAccounts = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setIsLoading(true);
     setError(null);
     try {
@@ -199,6 +208,7 @@ export function FacilityAccountManager() {
         "listManagedAccounts",
       );
       const result = await listManaged();
+      cachedManagedAccountsData = result.data;
       setData(result.data);
     } catch (err: unknown) {
       const e = err as { message?: string; code?: string };
@@ -209,6 +219,7 @@ export function FacilityAccountManager() {
       );
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   }, []);
 
@@ -706,64 +717,83 @@ export function FacilityAccountManager() {
       </div>
 
       {/* Summary Stat Cards */}
-      {data?.summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Total Consumers
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">{data.summary.totalConsumers}</p>
-            <p className="text-xs text-slate-400 mt-0.5">84 canonical</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
-              Active Consumers
-            </p>
-            <p className="text-2xl font-bold text-emerald-700 mt-1">
-              {data.summary.activeConsumers}
-            </p>
-            <p className="text-xs text-emerald-600/70 mt-0.5">Healthy & ready</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Paramedic</p>
-            <p className="text-2xl font-bold text-blue-700 mt-1">
-              {data.summary.activeStaff} / {data.summary.totalStaff}
-            </p>
-            <p className="text-xs text-blue-600/70 mt-0.5">Centralized scheduling</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-indigo-600 uppercase tracking-wider">
-              Doctor Accounts
-            </p>
-            <p className="text-2xl font-bold text-indigo-700 mt-1">
-              {data.summary.activeDoctors ?? 0} /{" "}
-              {data.summary.totalDoctors ?? data.doctors?.length ?? 0}
-            </p>
-            <p className="text-xs text-indigo-600/70 mt-0.5">Rheumatology specialists</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">Inactive</p>
-            <p className="text-2xl font-bold text-amber-700 mt-1">
-              {data.summary.inactiveConsumers + (data.summary.inactiveDoctors ?? 0)}
-            </p>
-            <p className="text-xs text-amber-600/70 mt-0.5">Disabled accounts</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-medium text-rose-600 uppercase tracking-wider">
-              Conflicts / Warn
-            </p>
-            <p className="text-2xl font-bold text-rose-700 mt-1">
-              {data.summary.conflictCount + data.summary.warningCount}
-            </p>
-            <p className="text-xs text-rose-600/70 mt-0.5">Requires audit</p>
-          </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+            Total Consumers
+          </p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">
+            {data?.summary ? data.summary.totalConsumers : 84}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">84 canonical</p>
         </div>
-      )}
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
+            Active Consumers
+          </p>
+          <p className="text-2xl font-bold text-emerald-700 mt-1">
+            {data?.summary ? (
+              data.summary.activeConsumers
+            ) : (
+              <span className="inline-block w-8 h-7 bg-emerald-100/60 rounded animate-pulse" />
+            )}
+          </p>
+          <p className="text-xs text-emerald-600/70 mt-0.5">Healthy & ready</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Paramedic</p>
+          <p className="text-2xl font-bold text-blue-700 mt-1">
+            {data?.summary ? (
+              `${data.summary.activeStaff} / ${data.summary.totalStaff}`
+            ) : (
+              <span className="inline-block w-12 h-7 bg-blue-100/60 rounded animate-pulse" />
+            )}
+          </p>
+          <p className="text-xs text-blue-600/70 mt-0.5">Centralized scheduling</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-indigo-600 uppercase tracking-wider">
+            Doctor Accounts
+          </p>
+          <p className="text-2xl font-bold text-indigo-700 mt-1">
+            {data?.summary ? (
+              `${data.summary.activeDoctors ?? 0} / ${data.summary.totalDoctors ?? data.doctors?.length ?? 0}`
+            ) : (
+              <span className="inline-block w-12 h-7 bg-indigo-100/60 rounded animate-pulse" />
+            )}
+          </p>
+          <p className="text-xs text-indigo-600/70 mt-0.5">Rheumatology specialists</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">Inactive</p>
+          <p className="text-2xl font-bold text-amber-700 mt-1">
+            {data?.summary ? (
+              data.summary.inactiveConsumers + (data.summary.inactiveDoctors ?? 0)
+            ) : (
+              <span className="inline-block w-8 h-7 bg-amber-100/60 rounded animate-pulse" />
+            )}
+          </p>
+          <p className="text-xs text-amber-600/70 mt-0.5">Disabled accounts</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-medium text-rose-600 uppercase tracking-wider">
+            Conflicts / Warn
+          </p>
+          <p className="text-2xl font-bold text-rose-700 mt-1">
+            {data?.summary ? (
+              data.summary.conflictCount + data.summary.warningCount
+            ) : (
+              <span className="inline-block w-8 h-7 bg-rose-100/60 rounded animate-pulse" />
+            )}
+          </p>
+          <p className="text-xs text-rose-600/70 mt-0.5">Requires audit</p>
+        </div>
+      </div>
 
       {/* Role Navigation Tabs */}
       <div className="flex border-b border-slate-200 gap-2 overflow-x-auto pb-0">
@@ -833,7 +863,15 @@ export function FacilityAccountManager() {
             <div className="flex items-center gap-2.5">
               <Building2 className="w-5 h-5 text-indigo-600" />
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Facility / Consumer Accounts</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-slate-900">Facility / Consumer Accounts</h2>
+                  {isLoading && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md animate-pulse">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin text-blue-600" />
+                      Syncing
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500">
                   84 Canonical Healthcare Facilities across Johor
                 </p>
@@ -895,13 +933,27 @@ export function FacilityAccountManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
-                      <Activity className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-500" />
-                      Checking canonical facility accounts...
-                    </td>
-                  </tr>
+                {isLoading && !data ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={`facility-skeleton-${i}`} className="animate-pulse">
+                      <td className="py-3.5 px-4 sm:px-6">
+                        <div className="h-4 bg-slate-200 rounded w-44 mb-1.5" />
+                        <div className="h-2.5 bg-slate-100 rounded w-24 sm:hidden" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="h-5 bg-slate-100 rounded-md w-24" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="h-3.5 bg-slate-100 rounded w-28 font-mono" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="h-6 bg-slate-100 rounded-full w-20" />
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 text-right">
+                        <div className="h-7 bg-slate-100 rounded-lg w-20 ml-auto" />
+                      </td>
+                    </tr>
+                  ))
                 ) : filteredConsumers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-500 text-xs">
@@ -998,9 +1050,20 @@ export function FacilityAccountManager() {
                   </div>
                 </div>
               ))
+            ) : isLoading && !data ? (
+              <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-slate-200 rounded w-36" />
+                    <div className="h-3 bg-slate-100 rounded w-48" />
+                  </div>
+                </div>
+                <div className="h-7 bg-slate-100 rounded-lg w-20 shrink-0" />
+              </div>
             ) : (
               <div className="p-8 text-center text-sm text-slate-500">
-                {isLoading ? "Loading staff account status..." : "No staff accounts returned."}
+                No staff accounts returned.
               </div>
             )}
           </div>
@@ -1103,13 +1166,23 @@ export function FacilityAccountManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400">
-                      <Activity className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-500" />
-                      Loading Doctor accounts...
-                    </td>
-                  </tr>
+                {isLoading && !data ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={`doctor-skeleton-${i}`} className="animate-pulse">
+                      <td className="py-3.5 px-4 sm:px-6">
+                        <div className="h-4 bg-slate-200 rounded w-40" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="h-3.5 bg-slate-100 rounded w-24 font-mono" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="h-6 bg-slate-100 rounded-full w-20" />
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 text-right">
+                        <div className="h-7 bg-slate-100 rounded-lg w-20 ml-auto" />
+                      </td>
+                    </tr>
+                  ))
                 ) : filteredDoctors.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-12 text-center">

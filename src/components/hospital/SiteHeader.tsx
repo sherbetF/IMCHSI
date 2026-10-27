@@ -29,7 +29,9 @@ import {
   UnifiedRequestNotification,
 } from "@/services/firebaseAppointments";
 
-const nav = [
+type NavItem = { label: string; to: string; isAppointmentScroll?: boolean };
+
+const nav: NavItem[] = [
   { label: "Home", to: "/" as const },
   { label: "NICL Procedure", to: "/" as const, isAppointmentScroll: true },
   { label: "Outsource", to: "/outsource" as const },
@@ -202,8 +204,8 @@ export function SiteHeader() {
               className="h-8 w-auto object-contain shrink-0"
               onError={(e) => {
                 const target = e.currentTarget;
-                if (!target.dataset.triedFallback) {
-                  target.dataset.triedFallback = "true";
+                if (!target.dataset['triedFallback']) {
+                  target.dataset['triedFallback'] = "true";
                   target.src = "/jata-negara.png";
                 }
               }}

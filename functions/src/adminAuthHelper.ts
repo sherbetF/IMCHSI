@@ -2,16 +2,19 @@ import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { AdminAuditLogEntry } from "./accountTypes.js";
 
 export const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+export const STORAGE_BUCKET_NAME = "outsource-f1e0f.firebasestorage.app";
 
 export function getAdminInstances() {
   const apps = getApps();
   const app = apps.length > 0 ? apps[0]! : initializeApp();
   const auth = getAuth(app);
   const db = getFirestore(app, TARGET_DATABASE_ID);
-  return { app, auth, db };
+  const storage = getStorage(app);
+  return { app, auth, db, storage };
 }
 
 export async function verifyAdminCaller(request: CallableRequest, db: Firestore) {

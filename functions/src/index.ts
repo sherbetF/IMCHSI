@@ -9,8 +9,12 @@ import {
   reserveRheumatologyAttachmentSlot,
   releaseRheumatologyAttachmentSlot,
 } from "./rheumatologyAttachmentReservation.js";
-import { listActiveDoctors } from "./listActiveDoctors.js";
-import { resolveDoctorLoginTarget } from "./resolveDoctorLoginTarget.js";
+import {
+  authorizePatientReportDownload,
+  getReportDownloadSignedUrl,
+  getRheumatologyAttachmentDownloadSignedUrl,
+} from "./authorizePatientReportDownload.js";
+import { replaceReportFile } from "./replaceReportFile.js";
 
 export {
   listFacilityAccounts,
@@ -22,8 +26,10 @@ export {
   validateManagedPassword,
   reserveRheumatologyAttachmentSlot,
   releaseRheumatologyAttachmentSlot,
-  listActiveDoctors,
-  resolveDoctorLoginTarget,
+  authorizePatientReportDownload,
+  getReportDownloadSignedUrl,
+  getRheumatologyAttachmentDownloadSignedUrl,
+  replaceReportFile,
 };
 
 export * from "./accountTypes.js";
@@ -32,4 +38,5 @@ export * from "./managedStaffAccounts.js";
 export * from "./passwordValidator.js";
 export * from "./adminAuthHelper.js";
 export * from "./rheumatologyAttachmentReservation.js";
-export * from "./doctorLoginHelper.js";
+export * from "./authorizePatientReportDownload.js";
+export * from "./replaceReportFile.js";

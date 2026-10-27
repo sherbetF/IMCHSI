@@ -162,9 +162,9 @@ export const createManagedAccount = onCall(
 
       // Check Auth and Firestore
       let authUserExists = false;
-      let existingAuthUser: any = null;
+
       try {
-        existingAuthUser = await auth.getUserByEmail(staffDef.email);
+        await auth.getUserByEmail(staffDef.email);
         authUserExists = true;
       } catch (err: unknown) {
         const e = err as { code?: string };
@@ -192,36 +192,10 @@ export const createManagedAccount = onCall(
       }
 
       if (authUserExists && !profileExists) {
-        const authUser = existingAuthUser!;
-        await db.collection("users").doc(authUser.uid).set({
-          role: staffDef.role,
-          accountKey: staffDef.accountKey,
-          displayName: staffDef.displayName,
-          active: true,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        if (authUser.disabled) {
-          await auth.updateUser(authUser.uid, { disabled: false });
-        }
-        await recordAdminAuditLog(db, {
-          action: "ACCOUNT_CREATED",
-          adminUid: callerUid,
-          targetRole: "paramedic_nurse",
-          targetAccountType: "PARAMEDIC_NURSE",
-          targetIdentifier: staffDef.accountKey,
-          success: true,
-          notes: "Repaired missing profile and activated centralized Paramedic account",
-        });
-        return {
-          success: true,
-          message:
-            "Successfully repaired missing profile and activated centralized Paramedic account.",
-          accountType: "PARAMEDIC_NURSE",
-          identifier: staffDef.accountKey,
-          status: "ACTIVE",
-          auditLogged: true,
-        };
+        throw new HttpsError(
+          "failed-precondition",
+          "PARTIAL_ACCOUNT: Paramedic Auth account exists but trusted profile is missing. Manual administrator review required.",
+        );
       }
 
       if (authUserExists || profileExists) {

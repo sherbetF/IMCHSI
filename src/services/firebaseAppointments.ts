@@ -10,6 +10,7 @@ import {
   Unsubscribe,
   Timestamp,
   FieldValue,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db, auth, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { getAuth } from "firebase/auth";
@@ -120,6 +121,7 @@ export interface AppointmentRecord {
     | "Returned to Facility"
     | "Awaiting Scheduling";
   createdAt: string;
+  submittedAt?: Timestamp | FieldValue | null;
   scheduledDate?: string;
   rejectReason?: string;
   rejectedBy?: string;
@@ -132,6 +134,7 @@ export interface AppointmentRecord {
     summaryNotes?: string;
     dataUrl?: string; // Legacy fallback
   };
+  duplicateJustification?: string;
   [key: string]: unknown;
 }
 
@@ -287,9 +290,17 @@ export async function createAppointment(
                 ? RHEUMATOLOGY_COLLECTION
                 : OUTSOURCE_COLLECTION;
 
+  const isNiclCollection =
+    collectionName === "echo" ||
+    collectionName === "stress" ||
+    collectionName === "holter" ||
+    collectionName === "bp" ||
+    collectionName === "lft";
+
   const docData: AppointmentRecord = {
     ...appointment,
     facilityId: appointment.facilityId,
+    ...(isNiclCollection ? { submittedAt: serverTimestamp() } : {}),
   };
 
   try {
@@ -389,8 +400,8 @@ export function subscribeToAllPendingNotifications(
               facilityName: r.facilityName,
               createdAt: r.createdAt,
               status: r.status,
-              scheduledDate: r.scheduledDate,
-              rejectReason: r.rejectReason,
+              ...(r.scheduledDate !== undefined ? { scheduledDate: r.scheduledDate } : {}),
+              ...(r.rejectReason !== undefined ? { rejectReason: r.rejectReason } : {}),
               notificationType: "pending",
               route,
             });
@@ -415,8 +426,8 @@ export function subscribeToAllPendingNotifications(
               facilityName: r.facilityName,
               createdAt: r.createdAt,
               status: "Scheduled",
-              scheduledDate: r.scheduledDate,
-              rejectReason: r.rejectReason,
+              ...(r.scheduledDate !== undefined ? { scheduledDate: r.scheduledDate } : {}),
+              ...(r.rejectReason !== undefined ? { rejectReason: r.rejectReason } : {}),
               notificationType: "scheduled",
               route,
             });
@@ -432,8 +443,8 @@ export function subscribeToAllPendingNotifications(
               facilityName: r.facilityName,
               createdAt: r.createdAt,
               status: "Rejected",
-              scheduledDate: r.scheduledDate,
-              rejectReason: r.rejectReason,
+              ...(r.scheduledDate !== undefined ? { scheduledDate: r.scheduledDate } : {}),
+              ...(r.rejectReason !== undefined ? { rejectReason: r.rejectReason } : {}),
               notificationType: "rejected",
               route,
             });
@@ -449,8 +460,8 @@ export function subscribeToAllPendingNotifications(
               facilityName: r.facilityName,
               createdAt: r.createdAt,
               status: r.status,
-              scheduledDate: r.scheduledDate,
-              rejectReason: r.rejectReason,
+              ...(r.scheduledDate !== undefined ? { scheduledDate: r.scheduledDate } : {}),
+              ...(r.rejectReason !== undefined ? { rejectReason: r.rejectReason } : {}),
               notificationType: "completed",
               route,
             });
@@ -466,8 +477,8 @@ export function subscribeToAllPendingNotifications(
               facilityName: r.facilityName,
               createdAt: r.createdAt,
               status: r.status,
-              scheduledDate: r.scheduledDate,
-              rejectReason: r.rejectReason,
+              ...(r.scheduledDate !== undefined ? { scheduledDate: r.scheduledDate } : {}),
+              ...(r.rejectReason !== undefined ? { rejectReason: r.rejectReason } : {}),
               notificationType: "pending",
               route,
             });

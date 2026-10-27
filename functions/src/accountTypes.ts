@@ -59,6 +59,16 @@ export interface ListManagedAccountsResponse {
     conflictCount: number;
     warningCount: number;
   };
+  diagnostics?: {
+    authorizationMs: number;
+    facilityRegistryMs?: number;
+    trustedProfilesMs?: number;
+    firestoreLoadMs: number;
+    authUsersLoadMs: number;
+    matchingMs: number;
+    sortingMs?: number;
+    totalMs: number;
+  };
 }
 
 /**

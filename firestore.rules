@@ -68,15 +68,14 @@ service cloud.firestore {
       // Public client creation of users/{uid} is strictly denied. Provisioning is backend-only via Firebase Admin SDK.
       allow create: if false;
       
-      // Updates: Admins managing facility / paramedic_nurse active status OR authenticated users acknowledging first login metadata
-      allow update: if (isAdmin() &&
-        request.resource.data.role == resource.data.role &&
-        (resource.data.role == "facility" || resource.data.role == "paramedic_nurse") &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])) ||
-        (isSignedIn() && request.auth.uid == uid &&
-         request.resource.data.role == resource.data.role &&
-         request.resource.data.active == resource.data.active &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt']));
+      // Account activation/deactivation must use the backend Cloud Function.
+// Users may only update their own first-login metadata.
+allow update: if isSignedIn() &&
+  request.auth.uid == uid &&
+  request.resource.data.role == resource.data.role &&
+  request.resource.data.active == resource.data.active &&
+  request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt']);
       
       // User profiles cannot be deleted from client SDK (deactivation is done via active: false)
       allow delete: if false;
@@ -133,12 +132,171 @@ service cloud.firestore {
         ]);
     }
 
+    // Approved statuses for the five NICL appointment modules.
+    function isValidNiclStatus(status) {
+      return status is string && status in [
+        'Pending Confirmation', 'Confirmed', 'Scheduled', 'Under Review', 'Rejected', 'Completed - Result Ready'
+      ];
+    }
+
+    // Accept legacy YYYY-MM-DD and current DD/MM/YYYY scheduling formats.
+    function isValidNiclScheduledDate(value) {
+      return value is string && value.size() <= 100 && (
+        value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]) @ (0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$') ||
+        value.matches('^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4} @ (0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$')
+      );
+    }
+
+    // NICL-only update validation. Existing legacy fields are not revalidated.
+    function canUpdateNiclRecord(existingRecord, incomingRecord) {
+      let changed = incomingRecord.diff(existingRecord).affectedKeys();
+      return isAdmin() || (
+        canParamedicNurseUpdateRecord(existingRecord, incomingRecord) &&
+        (!changed.hasAny(['status']) || (
+          isValidNiclStatus(incomingRecord.status) &&
+          incomingRecord.status != 'Completed - Result Ready'
+        )) &&
+        (!changed.hasAny(['status']) || incomingRecord.status != 'Scheduled' ||
+          ('scheduledDate' in incomingRecord && isValidNiclScheduledDate(incomingRecord.scheduledDate))) &&
+        (!changed.hasAny(['status']) || incomingRecord.status != 'Rejected' ||
+          ('rejectReason' in incomingRecord && incomingRecord.rejectReason is string &&
+           incomingRecord.rejectReason.size() > 0 && incomingRecord.rejectReason.size() <= 1000 &&
+           'rejectedBy' in incomingRecord && incomingRecord.rejectedBy is string &&
+           incomingRecord.rejectedBy.size() > 0 && incomingRecord.rejectedBy.size() <= 100)) &&
+        (!changed.hasAny(['scheduledDate']) || (
+          isValidNiclScheduledDate(incomingRecord.scheduledDate)
+        )) &&
+        (!changed.hasAny(['rejectReason']) || (
+          incomingRecord.rejectReason is string &&
+          incomingRecord.rejectReason.size() > 0 &&
+          incomingRecord.rejectReason.size() <= 1000
+        )) &&
+        (!changed.hasAny(['rejectedBy']) || (
+          incomingRecord.rejectedBy is string &&
+          incomingRecord.rejectedBy.size() > 0 &&
+          incomingRecord.rejectedBy.size() <= 100
+        )) &&
+        (!changed.hasAny(['updatedAt']) || (
+          incomingRecord.updatedAt is string &&
+          incomingRecord.updatedAt.size() <= 64
+        ))
+      );
+    }
+
     function canUpdateRecord(existingRecord, incomingRecord) {
       return isAdmin() || canParamedicNurseUpdateRecord(existingRecord, incomingRecord);
     }
 
     function canDeleteRecord(existingRecord) {
       return isAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // NICL APPOINTMENT CREATION VALIDATION HELPERS (Issue 1 Security Fix)
+    // -------------------------------------------------------------
+
+    // Validates that facility metadata matches an actual trusted record.
+    // 1. Prefers canonical metadata from facilities/{facilityId} where a complete trusted record exists.
+    // 2. Falls back to trusted user profile users/{uid}, requiring both fields to exist and match exactly.
+    // 3. Rejects creation if no complete trusted metadata source is available.
+    function matchesTrustedCategory(source, category) {
+      return (('category' in source) && source.category == category) ||
+        (('facilityCategory' in source) && source.facilityCategory == category);
+    }
+
+    function isTrustedFacilityMetadata(incoming) {
+      let registryPath = /databases/$(database)/documents/facilities/$(incoming.facilityId);
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      let registryExists = exists(registryPath);
+      let source = registryExists ? get(registryPath).data : get(userPath).data;
+      return ('facilityName' in source) &&
+        incoming.facilityName == source.facilityName &&
+        matchesTrustedCategory(source, incoming.facilityCategory);
+    }
+
+    // Administrators may create for facilities absent from the registry (existing workflow).
+    // Where a registry entry exists, validate the metadata against it.
+    function isTrustedAdminFacilityMetadata(incoming) {
+      let registryPath = /databases/$(database)/documents/facilities/$(incoming.facilityId);
+      let registryExists = exists(registryPath);
+      let source = registryExists ? get(registryPath).data : {};
+      return !registryExists || (
+        ('facilityName' in source) && incoming.facilityName == source.facilityName &&
+        (matchesTrustedCategory(source, incoming.facilityCategory) ||
+          (!('category' in source) && !('facilityCategory' in source)))
+      );
+    }
+
+    // Validates that all common clinical fields adhere strictly to types, length limits, procedure, and server timestamp
+    // Shared bounded-string validator. Keep each schema constraint explicit.
+    function niclText(v, maxLen) {
+      return v is string && v.size() > 0 && v.size() <= maxLen;
+    }
+
+    function niclOptionalText(d, key, maxLen) {
+      return !(key in d) || (d[key] is string && d[key].size() <= maxLen);
+    }
+
+    function niclRequiredKeys() {
+      return ['id','facilityId','facilityName','facilityCategory','patientName','mrn',
+        'contactNumber','email','procedureType','urgency','referringDoctor',
+        'clinicalIndication','diagnosis','status','createdAt','submittedAt'];
+    }
+
+    function niclFacilityKeys() {
+      return ['id','facilityId','facilityName','facilityCategory','patientName','mrn',
+        'contactNumber','email','procedureType','urgency','referringDoctor','department',
+        'clinicalIndication','diagnosis','status','createdAt','submittedAt','duplicateJustification'];
+    }
+
+    function niclAdminKeys() {
+      return ['id','facilityId','facilityName','facilityCategory','patientName','mrn',
+        'contactNumber','email','procedureType','urgency','referringDoctor','department',
+        'clinicalIndication','diagnosis','status','createdAt','submittedAt','duplicateJustification',
+        'scheduledDate','updatedAt','rejectReason','rejectedBy'];
+    }
+
+    // Validated once for both roles, instead of evaluating the full schema twice.
+    function niclCommonFields(d, procedure, docId) {
+      return d.keys().hasAll(niclRequiredKeys()) &&
+        niclText(d.id,64) && d.id == docId &&
+        niclText(d.facilityId,64) && niclText(d.facilityName,200) &&
+        niclText(d.facilityCategory,100) && niclText(d.patientName,200) &&
+        niclText(d.mrn,64) && niclText(d.contactNumber,50) &&
+        niclText(d.email,100) && d.procedureType == procedure &&
+        d.urgency in ['Routine','Urgent'] &&
+        niclText(d.referringDoctor,200) &&
+        niclText(d.clinicalIndication,2000) && niclText(d.diagnosis,2000) &&
+        niclText(d.createdAt,64) && d.submittedAt == request.time &&
+        niclOptionalText(d,'department',150) &&
+        niclOptionalText(d,'duplicateJustification',2000);
+    }
+
+    function niclFacilityCreate(d) {
+      return d.keys().hasOnly(niclFacilityKeys()) &&
+        d.status == 'Pending Confirmation' &&
+        d.facilityId == userFacilityId() &&
+        isTrustedFacilityMetadata(d);
+    }
+
+    function niclAdminCreate(d) {
+      return d.keys().hasOnly(niclAdminKeys()) &&
+        d.status in ['Pending Confirmation','Scheduled','Confirmed'] &&
+        (!('scheduledDate' in d) || isValidNiclScheduledDate(d.scheduledDate)) &&
+        niclOptionalText(d,'updatedAt',64) &&
+        niclOptionalText(d,'rejectReason',1000) &&
+        niclOptionalText(d,'rejectedBy',100) &&
+        (d.status != 'Scheduled' || ('scheduledDate' in d && niclText(d.scheduledDate,100))) &&
+        isTrustedAdminFacilityMetadata(d);
+    }
+
+    function canCreateNiclRecord(d, procedure, docId) {
+      return isSignedIn() &&
+        // Evaluate role before expensive clinical validation; shared schema runs only once.
+        (isFacilityUser() || isAdmin()) &&
+        niclCommonFields(d,procedure,docId) &&
+        ((isFacilityUser() && niclFacilityCreate(d)) ||
+         (isAdmin() && niclAdminCreate(d)));
     }
 
     // --- RHEUMATOLOGY SPECIFIC RULES ---
@@ -242,36 +400,36 @@ service cloud.firestore {
     // Secure appointment collections
     match /echo_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow create: if isSignedIn() && canCreateNiclRecord(request.resource.data, "Transthoracic Echocardiogram (TTE)", docId);
+      allow update: if isSignedIn() && canUpdateNiclRecord(resource.data, request.resource.data);
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /stress_test_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow create: if isSignedIn() && canCreateNiclRecord(request.resource.data, "Exercise Stress Test (Treadmill)", docId);
+      allow update: if isSignedIn() && canUpdateNiclRecord(resource.data, request.resource.data);
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /holter_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow create: if isSignedIn() && canCreateNiclRecord(request.resource.data, "24 Hours Holter Monitoring", docId);
+      allow update: if isSignedIn() && canUpdateNiclRecord(resource.data, request.resource.data);
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /blood_pressure_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow create: if isSignedIn() && canCreateNiclRecord(request.resource.data, "24 Hours Ambulatory Blood Pressure Monitoring (ABPM)", docId);
+      allow update: if isSignedIn() && canUpdateNiclRecord(resource.data, request.resource.data);
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 
     match /lung_function_appointments/{docId} {
       allow read: if isSignedIn() && canAccessRecord(resource.data);
-      allow create: if isSignedIn() && canCreateRecord(request.resource.data);
-      allow update: if isSignedIn() && canUpdateRecord(resource.data, request.resource.data);
+      allow create: if isSignedIn() && canCreateNiclRecord(request.resource.data, "Lung Function Test / Spirometry", docId);
+      allow update: if isSignedIn() && canUpdateNiclRecord(resource.data, request.resource.data);
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
     }
 

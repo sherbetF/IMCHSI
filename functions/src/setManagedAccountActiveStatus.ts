@@ -153,16 +153,29 @@ export const setManagedAccountActiveStatus = onCall(
 
         await db.collection("users").doc(authUser.uid).update(updatePayload);
       } catch (err: unknown) {
-        // Rollback Auth state on Firestore update failure
-        console.error("Firestore update failed, rolling back Auth disabled state:", err);
-        await auth.updateUser(authUser.uid, { disabled: authUser.disabled }).catch((rbErr) => {
-          console.error("Critical: Failed to rollback Auth state after Firestore error:", rbErr);
-        });
-        throw new HttpsError(
-          "internal",
-          "INTERNAL_OPERATION_FAILED: Failed to update profile active status. Operation rolled back.",
-        );
-      }
+  console.error("Firestore profile status update failed:", err);
+
+  try {
+    await auth.updateUser(authUser.uid, {
+      disabled: authUser.disabled,
+    });
+  } catch (rollbackError: unknown) {
+    console.error(
+      "CRITICAL: Auth rollback failed after Firestore update failure.",
+      rollbackError,
+    );
+
+    throw new HttpsError(
+      "internal",
+      "CRITICAL_ACCOUNT_STATE_INCONSISTENCY: Account status could not be restored. Administrator investigation required.",
+    );
+  }
+
+  throw new HttpsError(
+    "internal",
+    "INTERNAL_OPERATION_FAILED: Firestore update failed. Authentication status restored.",
+  );
+}
 
       // Audit log (Failure returns warning, does NOT repeat account operation)
       const actionName = targetActive ? "ACCOUNT_REACTIVATED" : "ACCOUNT_DISABLED";
@@ -291,14 +304,28 @@ export const setManagedAccountActiveStatus = onCall(
         }
 
         await db.collection("users").doc(authUser.uid).update(updatePayload);
-      } catch (err: unknown) {
-        console.error("Firestore update failed, rolling back Auth disabled state:", err);
-        await auth.updateUser(authUser.uid, { disabled: authUser.disabled }).catch((rbErr) => {
-          console.error("Critical: Failed to rollback Auth state after Firestore error:", rbErr);
-        });
+        } catch (err: unknown) {
+        console.error("Firestore profile status update failed:", err);
+
+        try {
+          await auth.updateUser(authUser.uid, {
+            disabled: authUser.disabled,
+          });
+        } catch (rollbackError: unknown) {
+          console.error(
+            "CRITICAL: Paramedic Auth rollback failed after Firestore update failure.",
+            rollbackError,
+          );
+
+          throw new HttpsError(
+            "internal",
+            "CRITICAL_ACCOUNT_STATE_INCONSISTENCY: Paramedic account status could not be restored. Administrator investigation required.",
+          );
+        }
+
         throw new HttpsError(
           "internal",
-          "INTERNAL_OPERATION_FAILED: Failed to update profile active status. Operation rolled back.",
+          "INTERNAL_OPERATION_FAILED: Firestore update failed. Authentication status restored.",
         );
       }
 

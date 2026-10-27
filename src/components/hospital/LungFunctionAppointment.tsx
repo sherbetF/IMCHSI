@@ -110,6 +110,7 @@ export function LungFunctionAppointment() {
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
+      if (!file) return;
       setSelectedFile(file);
       setResultFileName(file.name);
     }
@@ -118,6 +119,7 @@ export function LungFunctionAppointment() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
+      if (!file) return;
       setSelectedFile(file);
       setResultFileName(file.name);
     }
@@ -168,6 +170,7 @@ export function LungFunctionAppointment() {
         clearTimeout(dismissTimer);
       };
     }
+    return undefined;
   }, [submittedRef]);
 
   // Form State
@@ -202,19 +205,19 @@ export function LungFunctionAppointment() {
       return;
     }
 
-    if (!formData.patientName.trim()) errors.patientName = "Patient full name is required";
+    if (!formData.patientName.trim()) errors["patientName"] = "Patient full name is required";
     if (!formData.mrn.trim()) {
-      errors.mrn = "Identification No. is required";
+      errors["mrn"] = "Identification No. is required";
     } else if (/[^a-zA-Z0-9]/.test(formData.mrn.trim())) {
-      errors.mrn = "Identification No. can only contain letters and numbers (no symbols)";
+      errors["mrn"] = "Identification No. can only contain letters and numbers (no symbols)";
     }
-    if (!formData.contactNumber.trim()) errors.contactNumber = "Contact phone number is required";
+    if (!formData.contactNumber.trim()) errors["contactNumber"] = "Contact phone number is required";
     if (!formData.referringDoctor.trim())
-      errors.referringDoctor = "Referring doctor name is required";
-    if (!formData.department.trim()) errors.department = "Department is required";
+      errors["referringDoctor"] = "Referring doctor name is required";
+    if (!formData.department.trim()) errors["department"] = "Department is required";
     if (!formData.clinicalIndication.trim())
-      errors.clinicalIndication = "Clinical indication is required";
-    if (!formData.diagnosis.trim()) errors.diagnosis = "Diagnosis is required";
+      errors["clinicalIndication"] = "Clinical indication is required";
+    if (!formData.diagnosis.trim()) errors["diagnosis"] = "Diagnosis is required";
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -267,6 +270,7 @@ export function LungFunctionAppointment() {
           (a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime(),
         );
         const latestPrev = docs[0];
+        if (latestPrev) {
         setDuplicateOriginalStatus(latestPrev.status || "Pending Confirmation");
         setDuplicateOriginalId(latestPrev.id || "");
         setDuplicateOriginalDate(latestPrev.scheduledDate || "");
@@ -277,9 +281,12 @@ export function LungFunctionAppointment() {
         setDuplicateError("");
         setShowDuplicateModal(true);
         return;
+        }
       }
     } catch (err) {
       console.error("Error checking duplicate: ", err);
+      toast.error("Unable to check existing appointments. Please try again.");
+      return;
     } finally {
       setIsCheckingDuplicate(false);
     }
@@ -526,8 +533,8 @@ export function LungFunctionAppointment() {
                       placeholder="e.g. Lee Kok Keong"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
-                    {formErrors.patientName && (
-                      <p className="mt-1 text-xs text-destructive">{formErrors.patientName}</p>
+                    {formErrors["patientName"] && (
+                      <p className="mt-1 text-xs text-destructive">{formErrors["patientName"]}</p>
                     )}
                   </div>
 
@@ -546,8 +553,8 @@ export function LungFunctionAppointment() {
                       placeholder="e.g. 820315013392 or ID339201"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
-                    {formErrors.mrn && (
-                      <p className="mt-1 text-xs text-destructive">{formErrors.mrn}</p>
+                    {formErrors["mrn"] && (
+                      <p className="mt-1 text-xs text-destructive">{formErrors["mrn"]}</p>
                     )}
                   </div>
 
@@ -562,8 +569,8 @@ export function LungFunctionAppointment() {
                       placeholder="e.g. +60 12-881 2043"
                       className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                     />
-                    {formErrors.contactNumber && (
-                      <p className="mt-1 text-xs text-destructive">{formErrors.contactNumber}</p>
+                    {formErrors["contactNumber"] && (
+                      <p className="mt-1 text-xs text-destructive">{formErrors["contactNumber"]}</p>
                     )}
                   </div>
                 </div>
@@ -621,9 +628,9 @@ export function LungFunctionAppointment() {
                         placeholder="e.g. Dr. Lim Wei Hong"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
-                      {formErrors.referringDoctor && (
+                      {formErrors["referringDoctor"] && (
                         <p className="mt-1 text-xs text-destructive">
-                          {formErrors.referringDoctor}
+                          {formErrors["referringDoctor"]}
                         </p>
                       )}
                     </div>
@@ -639,8 +646,8 @@ export function LungFunctionAppointment() {
                         placeholder="e.g. Outpatient Department"
                         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                       />
-                      {formErrors.department && (
-                        <p className="mt-1 text-xs text-destructive">{formErrors.department}</p>
+                      {formErrors["department"] && (
+                        <p className="mt-1 text-xs text-destructive">{formErrors["department"]}</p>
                       )}
                     </div>
                   </div>
@@ -660,8 +667,8 @@ export function LungFunctionAppointment() {
                     placeholder="Describe chronic cough, exertional dyspnea, wheezing episodes, smoking history, pre-operative pulmonary assessment, asthma/COPD monitoring..."
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
-                  {formErrors.clinicalIndication && (
-                    <p className="mt-1 text-xs text-destructive">{formErrors.clinicalIndication}</p>
+                  {formErrors["clinicalIndication"] && (
+                    <p className="mt-1 text-xs text-destructive">{formErrors["clinicalIndication"]}</p>
                   )}
                 </div>
 
@@ -677,8 +684,8 @@ export function LungFunctionAppointment() {
                     placeholder="e.g. Bronchial Asthma, Chronic Obstructive Pulmonary Disease (COPD), Bronchiectasis, Interstitial Lung Disease (ILD), Restrictive Defect."
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
-                  {formErrors.diagnosis && (
-                    <p className="mt-1 text-xs text-destructive">{formErrors.diagnosis}</p>
+                  {formErrors["diagnosis"] && (
+                    <p className="mt-1 text-xs text-destructive">{formErrors["diagnosis"]}</p>
                   )}
                 </div>
               </div>

@@ -57,6 +57,7 @@ export const listFacilityAccounts = onCall(
     const { auth, db } = getAdminInstances();
 
     // 2. Caller Authorization Verification from Named Firestore Database
+    const tAuthStart = performance.now();
     const callerDocSnap = await db.collection("users").doc(callerUid).get();
     if (!callerDocSnap.exists) {
       throw new HttpsError(
@@ -72,8 +73,58 @@ export const listFacilityAccounts = onCall(
         "Authorization failed: Caller is not an active administrator.",
       );
     }
+    const authorizationMs = Math.round(performance.now() - tAuthStart);
 
-    // 3. Process Status for each Canonical Facility (Read-Only)
+    // 3. High-Performance Bulk Data Loading (Eliminates 168 N+1 sequential network calls)
+    const tBulkStart = performance.now();
+    const loadFirestorePromise = db.collection("users").get();
+    const loadAuthPromise = (async () => {
+      const users: { uid: string; email?: string; disabled: boolean }[] = [];
+      let pageToken: string | undefined = undefined;
+      do {
+        const listResult = await auth.listUsers(1000, pageToken);
+        for (const u of listResult.users) {
+          users.push({ uid: u.uid, email: u.email, disabled: u.disabled });
+        }
+        pageToken = listResult.pageToken;
+      } while (pageToken);
+      return users;
+    })();
+
+    const [usersSnapshot, authUsers] = await Promise.all([loadFirestorePromise, loadAuthPromise]);
+
+    // In-memory indexing
+    const authUsersByEmail = new Map<string, { uid: string; disabled: boolean }>();
+    for (const u of authUsers) {
+      if (u.email) {
+        authUsersByEmail.set(u.email.toLowerCase(), { uid: u.uid, disabled: u.disabled });
+      }
+    }
+
+    interface IndexedDoc {
+      uid: string;
+      role?: string;
+      facilityId?: string;
+      active?: boolean;
+    }
+    const profilesByFacilityId = new Map<string, IndexedDoc[]>();
+    for (const doc of usersSnapshot.docs) {
+      const d = doc.data();
+      const facId = d["facilityId"];
+      if (typeof facId === "string" && facId.trim()) {
+        const k = facId.trim();
+        const list = profilesByFacilityId.get(k) || [];
+        list.push({
+          uid: doc.id,
+          role: d["role"] as string | undefined,
+          facilityId: facId,
+          active: d["active"] as boolean | undefined,
+        });
+        profilesByFacilityId.set(k, list);
+      }
+    }
+
+    // 4. Process Status for each Canonical Facility (Read-Only) in Memory
     const results: SafeFacilityAccountItem[] = [];
     let activeCount = 0;
     let inactiveCount = 0;
@@ -83,32 +134,8 @@ export const listFacilityAccounts = onCall(
 
     for (const fac of CANONICAL_FACILITIES) {
       const email = `facility_${fac.facilityId}@auth.local`;
-
-      // Check Firebase Auth
-      let authUser: { uid: string; disabled: boolean } | null = null;
-      try {
-        const u = await auth.getUserByEmail(email);
-        authUser = { uid: u.uid, disabled: u.disabled };
-      } catch (err: unknown) {
-        const error = err as { code?: string };
-        if (error.code !== "auth/user-not-found") {
-          // If unexpected Auth error, log safely and treat as unknown
-          console.warn(`Auth check warning for ${fac.facilityId}:`, error.code);
-        }
-      }
-
-      // Check trusted Firestore profiles in named database
-      const usersQuery = await db
-        .collection("users")
-        .where("facilityId", "==", fac.facilityId)
-        .get();
-
-      const matchingDocs = usersQuery.docs.map((doc) => ({
-        uid: doc.id,
-        role: doc.data()["role"] as string | undefined,
-        facilityId: doc.data()["facilityId"] as string | undefined,
-        active: doc.data()["active"] as boolean | undefined,
-      }));
+      const authUser = authUsersByEmail.get(email.toLowerCase()) || null;
+      const matchingDocs = profilesByFacilityId.get(fac.facilityId) || [];
 
       // Multiple profiles claiming the same facilityId -> CONFLICT
       if (matchingDocs.length > 1) {
@@ -123,7 +150,7 @@ export const listFacilityAccounts = onCall(
         continue;
       }
 
-      const profile = matchingDocs.length === 1 ? matchingDocs[0] : null;
+      const profile = matchingDocs.length === 1 ? matchingDocs[0]! : null;
 
       let status: SafeFacilityAccountItem["status"] = "NOT_CREATED";
       let statusDetails = "Account does not exist.";
@@ -172,6 +199,11 @@ export const listFacilityAccounts = onCall(
         statusDetails,
       });
     }
+
+    const totalBulkMs = Math.round(performance.now() - tBulkStart);
+    console.log(
+      `[listFacilityAccounts Timing] authorization: ${authorizationMs}ms | bulkAndMatch: ${totalBulkMs}ms`,
+    );
 
     return {
       facilities: results,

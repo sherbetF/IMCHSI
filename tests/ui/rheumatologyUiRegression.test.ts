@@ -117,47 +117,13 @@ describe("Stage 7 — UI Role-Aware Tabs & Rendering Regressions", () => {
   });
 
   // --------------------------------------------------------------------------
-  // 4. Doctor Simplified Authentication Flow & Opaque LoginKey Invariants
+  // 4. Doctor ID + Password Direct Authentication Flow & Safety Invariants
   // --------------------------------------------------------------------------
-  describe("Doctor Simplified Login Identity Resolution & Safety Invariants", () => {
-    function generateMockDoctorLoginKey(doctorId: string): string {
-      const cleanId = (doctorId || "").trim().toLowerCase();
-      // Emulates the HMAC-based opaque selector format
-      return `doc_sel_${cleanId.length > 0 ? "mockhash" + cleanId.slice(-4) : ""}`;
-    }
-
-    function buildDoctorDirectoryItems(
-      rawDoctors: Array<{ doctorId: string; displayName: string; active: boolean }>,
-    ): Array<{ loginKey: string; displayName: string }> {
-      const active = rawDoctors.filter((d) => d.active);
-      const nameCounts = new Map<string, number>();
-      for (const d of active) {
-        nameCounts.set(d.displayName, (nameCounts.get(d.displayName) || 0) + 1);
-      }
-      const nameIndices = new Map<string, number>();
-      return active.map((d) => {
-        let label = d.displayName;
-        if ((nameCounts.get(d.displayName) || 0) > 1) {
-          const idx = (nameIndices.get(d.displayName) || 0) + 1;
-          nameIndices.set(d.displayName, idx);
-          label = `${d.displayName} (Account ${idx})`;
-        }
-        return {
-          loginKey: generateMockDoctorLoginKey(d.doctorId),
-          displayName: label,
-        };
-      });
-    }
-
-    function resolveDoctorAuthEmail(
-      loginKey: string,
-      directory: Array<{ doctorId: string; loginKey: string }>,
-    ): string {
-      const cleanKey = (loginKey || "").trim();
-      if (!cleanKey) throw new Error("Doctor selection required");
-      const match = directory.find((d) => d.loginKey === cleanKey);
-      if (!match) throw new Error("Doctor account unavailable");
-      return `doctor_${match.doctorId.toLowerCase()}@auth.local`;
+  describe("Doctor Direct ID + Password Login Safety Invariants", () => {
+    function resolveDoctorAuthEmailFromId(doctorIdInput: string): string {
+      const cleanId = (doctorIdInput || "").trim().toLowerCase();
+      if (!cleanId) throw new Error("Doctor ID required");
+      return `doctor_${cleanId}@auth.local`;
     }
 
     function validateDoctorPostAuthProfile(
@@ -184,47 +150,19 @@ describe("Stage 7 — UI Role-Aware Tabs & Rendering Regressions", () => {
       return { valid: true };
     }
 
-    it("ensures public Doctor directory NEVER exposes canonical doctorId, UID, or email", () => {
-      const directory = buildDoctorDirectoryItems([
-        { doctorId: "dr_rheum_ABC123", displayName: "Dr. Sarah", active: true },
-        { doctorId: "dr_rheum_XYZ999", displayName: "Dr. John", active: true },
-      ]);
-
-      for (const item of directory) {
-        expect(item).toHaveProperty("loginKey");
-        expect(item).toHaveProperty("displayName");
-        expect(item).not.toHaveProperty("doctorId");
-        expect(item).not.toHaveProperty("uid");
-        expect(item).not.toHaveProperty("email");
-        expect(item.loginKey).not.toContain("dr_rheum_");
-      }
+    it("derives deterministic auth email directly from Doctor ID input", () => {
+      const email1 = resolveDoctorAuthEmailFromId("dr_rheum_ABC123");
+      const email2 = resolveDoctorAuthEmailFromId("DR_RHEUM_abc123 ");
+      expect(email1).toBe("doctor_dr_rheum_abc123@auth.local");
+      expect(email2).toBe("doctor_dr_rheum_abc123@auth.local");
     });
 
-    it("disambiguates duplicate display names without exposing doctorId", () => {
-      const directory = buildDoctorDirectoryItems([
-        { doctorId: "dr_rheum_111", displayName: "Dr. Sarah", active: true },
-        { doctorId: "dr_rheum_222", displayName: "Dr. Sarah", active: true },
-      ]);
-
-      expect(directory[0].displayName).toBe("Dr. Sarah (Account 1)");
-      expect(directory[1].displayName).toBe("Dr. Sarah (Account 2)");
-      expect(directory[0].displayName).not.toContain("dr_rheum");
-      expect(directory[1].displayName).not.toContain("dr_rheum");
+    it("throws error if Doctor ID is empty or whitespace", () => {
+      expect(() => resolveDoctorAuthEmailFromId("")).toThrow("Doctor ID required");
+      expect(() => resolveDoctorAuthEmailFromId("   ")).toThrow("Doctor ID required");
     });
 
-    it("resolves opaque loginKey to individual deterministic auth email without exposing password discovery", () => {
-      const email = resolveDoctorAuthEmail("doc_sel_mockhashC123", [
-        { doctorId: "dr_rheum_ABC123", loginKey: "doc_sel_mockhashC123" },
-      ]);
-      expect(email).toBe("doctor_dr_rheum_abc123@auth.local");
-    });
-
-    it("throws error if doctor is not selected prior to authentication", () => {
-      expect(() => resolveDoctorAuthEmail("", [])).toThrow("Doctor selection required");
-      expect(() => resolveDoctorAuthEmail("   ", [])).toThrow("Doctor selection required");
-    });
-
-    it("validates that authenticated profile matches the resolved login email identity", () => {
+    it("validates that authenticated profile matches the Doctor ID auth email identity", () => {
       const result = validateDoctorPostAuthProfile(
         "doctor_dr_rheum_abc123@auth.local",
         "doctor_dr_rheum_abc123@auth.local",
@@ -237,7 +175,7 @@ describe("Stage 7 — UI Role-Aware Tabs & Rendering Regressions", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("rejects authentication session if profile doctorId does not match resolved email", () => {
+    it("rejects authentication session if profile doctorId does not match Doctor ID input", () => {
       const result = validateDoctorPostAuthProfile(
         "doctor_dr_rheum_abc123@auth.local",
         "doctor_dr_rheum_abc123@auth.local",

@@ -79,7 +79,7 @@ function RootContent() {
   const { currentUser, userRole, mustChangePassword } = useFacility();
 
   const gateState = getFacilityPasswordGateState({
-    role: userRole,
+    ...(userRole != null ? { role: userRole } : {}),
     active: true,
     mustChangePassword,
   });

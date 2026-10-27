@@ -14,12 +14,16 @@ service firebase.storage {
     }
 
     function hasUserDoc() {
-      return isSignedIn() &&
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+      return isSignedIn() && (
+        firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid)) ||
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+      );
     }
 
     function getUserDoc() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
+        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
+        : firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
     function isActiveUser() {
@@ -43,6 +47,30 @@ service firebase.storage {
         getUserDoc().data.role == "outsource";
     }
 
+    function getOutsourceAppt(reportId) {
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId))
+        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId))
+        : firestore.get(/databases/(default)/documents/outsource_appointments/$(reportId));
+    }
+
+    function isOutsourceApptExists(reportId) {
+      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId)) ||
+        firestore.exists(/databases/(default)/documents/outsource_appointments/$(reportId));
+    }
+
+    function isAssignedOutsourceProvider(reportId, facilityId) {
+      return isOutsourceUser() &&
+        isOutsourceApptExists(reportId) &&
+        getOutsourceAppt(reportId).data.facilityId == facilityId && (
+          (getUserDoc().data.outsourceProviderId is string &&
+           getUserDoc().data.outsourceProviderId.size() > 0 &&
+           getOutsourceAppt(reportId).data.outsourceProviderId == getUserDoc().data.outsourceProviderId) ||
+          (getUserDoc().data.providerId is string &&
+           getUserDoc().data.providerId.size() > 0 &&
+           getOutsourceAppt(reportId).data.providerId == getUserDoc().data.providerId)
+        );
+    }
+
     // File validation: PDF and common medical image types up to 20MB
     function isValidReportFile() {
       return request.resource.size <= 20 * 1024 * 1024 &&
@@ -52,18 +80,54 @@ service firebase.storage {
 
     // Facility medical diagnostic report files
     match /facilities/{facilityId}/reports/{reportId}/{fileName} {
+      // READ: Authorized Facility Owner or Admin.
+      // Paramedic, Outsource, other facilities, and unauthenticated: DENIED.
       allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
-      allow create: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId)) && isValidReportFile();
-      allow update: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId)) && isValidReportFile();
-      allow delete: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+
+      // CREATE: Authorized Facility Owner or Admin for NEW files only.
+      // Direct client-side overwriting of existing files is forbidden (resource == null).
+      allow create: if isSignedIn() &&
+        resource == null &&
+        (isAdmin() || isFacilityUser(facilityId)) &&
+        isValidReportFile();
+
+      // UPDATE: Direct client-side same-path overwrite strictly DENIED.
+      // Replacement must use secure backend versioning function.
+      allow update: if false;
+
+      // DELETE: Direct client-side deletion DENIED for all client accounts.
+      allow delete: if false;
     }
 
-    // Outsource diagnostic reports (accessible by designated facility, admin, and centralized outsource provider)
+    // Protected archived report versions
+    match /facilities/{facilityId}/reports/{reportId}/archive/{archiveId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+      allow create, update, delete: if false;
+    }
+
+    // Outsource diagnostic reports
     match /outsource/{facilityId}/reports/{reportId}/{fileName} {
-      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser());
-      allow create: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser()) && isValidReportFile();
-      allow update: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser()) && isValidReportFile();
-      allow delete: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isOutsourceUser());
+      // READ: Owning Facility, Admin, or designated assigned Outsource provider.
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isAssignedOutsourceProvider(reportId, facilityId));
+
+      // CREATE: Assigned Outsource provider or Admin ONLY for NEW files (resource == null).
+      // Unassigned Outsource providers and ordinary facility accounts MUST NOT upload files here.
+      allow create: if isSignedIn() &&
+        resource == null &&
+        (isAdmin() || isAssignedOutsourceProvider(reportId, facilityId)) &&
+        isValidReportFile();
+
+      // UPDATE: Direct client-side same-path overwrite strictly DENIED.
+      allow update: if false;
+
+      // DELETE: Direct client-side deletion DENIED for all client accounts.
+      allow delete: if false;
+    }
+
+    // Protected archived Outsource report versions
+    match /outsource/{facilityId}/reports/{reportId}/archive/{archiveId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isAssignedOutsourceProvider(reportId, facilityId));
+      allow create, update, delete: if false;
     }
 
     // -------------------------------------------------------------

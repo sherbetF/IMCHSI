@@ -11,6 +11,9 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   Plus,
+  Eye,
+  Download,
+  X,
 } from "lucide-react";
 import {
   RheumatologyAttachmentMetadata,
@@ -21,7 +24,7 @@ import {
   subscribeToRheumatologyAttachments,
   uploadRheumatologyAttachment,
   deleteRheumatologyAttachment,
-  getRheumatologyAttachmentDownloadUrl,
+  getRheumatologyAttachmentBlob,
   RheumatologyAttachmentError,
 } from "@/services/rheumatologyAttachmentsService";
 import { RheumatologyStatus } from "@/services/rheumatologyService";
@@ -56,7 +59,52 @@ export function RheumatologyAttachmentsManager({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<{
+    metadata: RheumatologyAttachmentMetadata;
+    objectUrl: string;
+  } | null>(null);
+  const activeObjectUrlRef = useRef<string | null>(null);
+  const activeFetchIdRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Safely revokes active in-memory object URL to prevent memory leaks
+  const revokeActivePreview = React.useCallback(() => {
+    if (activeObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(activeObjectUrlRef.current);
+      } catch {
+        // ignore
+      }
+      activeObjectUrlRef.current = null;
+    }
+  }, []);
+
+  // Close viewer modal, cancel any in-flight fetches, and immediately revoke in-memory object URL
+  const handleClosePreview = React.useCallback(() => {
+    activeFetchIdRef.current += 1;
+    setViewingId(null);
+    revokeActivePreview();
+    setPreviewAttachment(null);
+  }, [revokeActivePreview]);
+
+  // Ensure blob object URL is revoked and pending fetches cancelled when component unmounts
+  useEffect(() => {
+    return () => {
+      activeFetchIdRef.current += 1;
+      revokeActivePreview();
+    };
+  }, [revokeActivePreview]);
+
+  // Handle Escape key to close document viewer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && previewAttachment) {
+        handleClosePreview();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewAttachment, handleClosePreview]);
 
   const isParamedic = isParamedicNurse || userRole === "paramedic_nurse";
 
@@ -149,28 +197,64 @@ export function RheumatologyAttachmentsManager({
     }
   };
 
-  // Handle document download / preview
+  // Handle document viewing via authenticated getBlob() and in-memory Blob URL
   const handleViewDocument = async (attachment: RheumatologyAttachmentMetadata) => {
+    // Generate unique ID for this fetch to discard stale or cancelled responses
+    const currentFetchId = ++activeFetchIdRef.current;
     setViewingId(attachment.attachmentId);
+
     try {
-      const url = await getRheumatologyAttachmentDownloadUrl(referralId, attachment.attachmentId);
-      // Open safely in new browser window/tab
-      const newWindow = window.open(url, "_blank", "noopener,noreferrer");
-      if (!newWindow) {
-        // Fallback if popup blocker is active
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-        anchor.click();
+      const blob = await getRheumatologyAttachmentBlob(referralId, attachment.attachmentId);
+
+      // Discard if component unmounted, viewer closed, or another file was selected
+      if (activeFetchIdRef.current !== currentFetchId) {
+        return;
       }
+
+      // Create object URL with single owned lifecycle
+      const objectUrl = URL.createObjectURL(blob);
+
+      // Guard check: if cancelled synchronously between creation and assignment, revoke immediately
+      if (activeFetchIdRef.current !== currentFetchId) {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      // Revoke any previous active preview URL before adopting the new one
+      revokeActivePreview();
+
+      activeObjectUrlRef.current = objectUrl;
+      setPreviewAttachment({
+        metadata: attachment,
+        objectUrl,
+      });
     } catch (err: unknown) {
+      // Ignore errors from stale or cancelled fetches
+      if (activeFetchIdRef.current !== currentFetchId) {
+        return;
+      }
       const e = err as Error;
-      console.error("Failed to view attachment:", err);
-      toast.error(e.message || "Could not generate document link. You may lack permission.");
+      toast.error(e.message || "Failed to load document. You may lack authorization.");
     } finally {
-      setViewingId(null);
+      if (activeFetchIdRef.current === currentFetchId) {
+        setViewingId(null);
+      }
     }
+  };
+
+  // Authorized local download using the already retrieved in-memory Blob URL
+  const handleDownloadPreview = () => {
+    if (!previewAttachment) return;
+    const link = document.createElement("a");
+    link.href = previewAttachment.objectUrl;
+    link.download = previewAttachment.metadata.originalFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Handle document deletion
@@ -338,18 +422,18 @@ export function RheumatologyAttachmentsManager({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {/* View / Download button */}
+                  {/* View / Preview button */}
                   <button
                     type="button"
                     disabled={isViewing || isDeleting}
                     onClick={() => handleViewDocument(att)}
                     className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-accent transition-colors disabled:opacity-50 cursor-pointer"
-                    title="View / Download Document in new window"
+                    title="Preview Clinical Document"
                   >
                     {isViewing ? (
                       <Loader2 className="h-3 w-3 animate-spin text-primary" />
                     ) : (
-                      <ExternalLink className="h-3 w-3 text-primary" />
+                      <Eye className="h-3.5 w-3.5 text-primary" />
                     )}
                     <span>View</span>
                   </button>
@@ -374,6 +458,118 @@ export function RheumatologyAttachmentsManager({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Secure In-App Attachment Viewer Modal */}
+      {previewAttachment && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={handleClosePreview}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Preview document ${previewAttachment.metadata.originalFileName}`}
+        >
+          <div
+            className="flex flex-col w-full max-w-4xl max-h-[90vh] rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 bg-surface/50">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                    previewAttachment.metadata.contentType === "application/pdf" ||
+                    previewAttachment.metadata.originalFileName.endsWith(".pdf")
+                      ? "bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300"
+                      : "bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                  }`}
+                >
+                  {previewAttachment.metadata.contentType === "application/pdf" ||
+                  previewAttachment.metadata.originalFileName.endsWith(".pdf") ? (
+                    <FileText className="h-4 w-4" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h4
+                    className="truncate text-xs sm:text-sm font-bold text-heading"
+                    title={previewAttachment.metadata.originalFileName}
+                  >
+                    {previewAttachment.metadata.originalFileName}
+                  </h4>
+                  <p className="text-[10px] text-muted-foreground font-mono">
+                    {formatAttachmentSize(previewAttachment.metadata.size)} • Protected Clinical
+                    Document
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDownloadPreview}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors cursor-pointer"
+                  title="Download document copy"
+                >
+                  <Download className="h-3.5 w-3.5 text-primary" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClosePreview}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground transition-colors cursor-pointer"
+                  title="Close document preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Document Preview */}
+            <div className="flex-1 min-h-[400px] max-h-[calc(90vh-65px)] overflow-auto p-2 sm:p-4 bg-muted/20 flex items-center justify-center">
+              {previewAttachment.metadata.contentType === "application/pdf" ||
+              previewAttachment.metadata.originalFileName.endsWith(".pdf") ? (
+                <div className="w-full h-full min-h-[500px] rounded-lg overflow-hidden border border-border bg-background">
+                  <object
+                    data={`${previewAttachment.objectUrl}#toolbar=1&navpanes=1`}
+                    type="application/pdf"
+                    className="w-full h-full min-h-[500px] border-none"
+                  >
+                    <iframe
+                      src={`${previewAttachment.objectUrl}#toolbar=1&navpanes=1`}
+                      title={previewAttachment.metadata.originalFileName}
+                      className="w-full h-full min-h-[500px] border-none"
+                    >
+                      <div className="p-8 text-center space-y-3">
+                        <FileText className="h-10 w-10 text-primary mx-auto" />
+                        <p className="text-xs text-muted-foreground">
+                          Inline PDF preview is not available in your browser.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleDownloadPreview}
+                          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:opacity-90 cursor-pointer"
+                        >
+                          Download PDF File
+                        </button>
+                      </div>
+                    </iframe>
+                  </object>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center p-2">
+                  <img
+                    src={previewAttachment.objectUrl}
+                    alt={previewAttachment.metadata.originalFileName}
+                    className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-sm"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

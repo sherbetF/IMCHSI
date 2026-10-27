@@ -83,7 +83,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
-        const forceChange = userData.mustChangePassword === true;
+        const forceChange = userData["mustChangePassword"] === true;
         setMustChangePassword(forceChange);
         return !forceChange;
       }
@@ -120,7 +120,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
 
           const userData = userDocSnap.data();
-          if (userData.active !== true) {
+          if (userData["active"] !== true) {
             // FAIL CLOSED: Account is disabled
             await signOut(auth);
             setCurrentUser(null);
@@ -131,7 +131,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             return;
           }
 
-          if (userData.role === "admin") {
+          if (userData["role"] === "admin") {
             setCurrentUser(user);
             setUserRole("admin");
             setFacilityId(null);
@@ -142,8 +142,8 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               name: "Hospital Sultan Ismail (Admin Mode)",
             });
             setIsOutsourceAuthenticated(true);
-          } else if (userData.role === "facility") {
-            if (!userData.facilityId || typeof userData.facilityId !== "string") {
+          } else if (userData["role"] === "facility") {
+            if (!userData["facilityId"] || typeof userData["facilityId"] !== "string") {
               // FAIL CLOSED: Missing or invalid canonical facilityId
               await signOut(auth);
               setCurrentUser(null);
@@ -156,16 +156,16 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
             setCurrentUser(user);
             setUserRole("facility");
-            setFacilityId(userData.facilityId);
+            setFacilityId(userData["facilityId"]);
             // Backward compatibility: If mustChangePassword is missing/undefined, treat as false.
-            setMustChangePassword(userData.mustChangePassword === true);
+            setMustChangePassword(userData["mustChangePassword"] === true);
             setSelectedFacilityState({
-              facilityId: userData.facilityId,
-              category: userData.category || "Klinik Kesihatan",
-              name: userData.facilityName || userData.facilityId,
+              facilityId: userData["facilityId"],
+              category: userData["category"] || "Klinik Kesihatan",
+              name: userData["facilityName"] || userData["facilityId"],
             });
             setIsOutsourceAuthenticated(false);
-          } else if (userData.role === "paramedic_nurse") {
+          } else if (userData["role"] === "paramedic_nurse") {
             setCurrentUser(user);
             setUserRole("paramedic_nurse");
             setFacilityId(null);
@@ -173,15 +173,15 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setSelectedFacilityState({
               facilityId: "paramedic_nurse",
               category: "Hospital",
-              name: userData.displayName || "Paramedic",
+              name: userData["displayName"] || "Paramedic",
             });
             setIsOutsourceAuthenticated(false);
-          } else if (userData.role === "doctor") {
+          } else if (userData["role"] === "doctor") {
             if (
-              !userData.doctorId ||
-              typeof userData.doctorId !== "string" ||
-              !userData.doctorId.trim() ||
-              userData.active !== true
+              !userData["doctorId"] ||
+              typeof userData["doctorId"] !== "string" ||
+              !userData["doctorId"].trim() ||
+              userData["active"] !== true
             ) {
               await signOut(auth);
               setCurrentUser(null);
@@ -197,12 +197,12 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setFacilityId(null);
             setMustChangePassword(false);
             setSelectedFacilityState({
-              facilityId: userData.doctorId,
+              facilityId: userData["doctorId"],
               category: "Hospital",
-              name: userData.displayName || "Rheumatology Doctor",
+              name: userData["displayName"] || "Rheumatology Doctor",
             });
             setIsOutsourceAuthenticated(false);
-          } else if (userData.role === "outsource") {
+          } else if (userData["role"] === "outsource") {
             setCurrentUser(user);
             setUserRole("outsource");
             setFacilityId("outsource");
@@ -316,7 +316,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       const userData = userDocSnap.data();
-      if (userData.role !== "outsource" || userData.active !== true) {
+      if (userData["role"] !== "outsource" || userData["active"] !== true) {
         await signOut(auth);
         return {
           success: false,
@@ -421,7 +421,7 @@ const defaultFacilityContext: FacilityContextType = {
   logoutOutsource: async () => {},
   currentUser: null,
   userRole: null,
-  isParamedicNurse: false,
+
   isDoctor: false,
   facilityId: null,
   canManageScheduling: false,

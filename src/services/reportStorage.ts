@@ -104,12 +104,13 @@ export async function uploadReportFile(
 }
 
 /**
- * Securely retrieves the protected file blob from Firebase Storage using authenticated credentials.
+ * Securely retrieves the protected file blob.
  */
 export async function getReportBlob(storagePath: string): Promise<Blob> {
   if (!storagePath) {
     throw new Error("Storage path is required.");
   }
+
   const storageRef = ref(storage, storagePath);
   return await getBlob(storageRef);
 }

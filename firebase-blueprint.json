@@ -184,9 +184,42 @@
         "status": { "type": "string" },
         "createdAt": { "type": "string" },
         "scheduledDate": { "type": "string" },
+        "outsourceProviderId": { "type": "string" },
+        "providerId": { "type": "string" },
+        "assignedOutsourceProviderId": { "type": "string" },
+        "assignmentHistory": { "type": "array" },
+        "reportVersionHistory": { "type": "array" },
+        "isHistoricalUnverified": { "type": "boolean" },
         "resultFile": { "type": "object" }
       },
       "required": ["id", "facilityName", "patientName", "mrn", "status", "createdAt"]
+    },
+    "outsource_providers": {
+      "title": "Outsource Providers Directory",
+      "description": "Canonical registry of authorized external healthcare and diagnostic providers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "isActive"]
+    },
+    "outsource_upload_reservations": {
+      "title": "Outsource Upload Reservations",
+      "description": "Race-safe reservations for atomic outsource diagnostic report uploads",
+      "type": "object",
+      "properties": {
+        "reservationId": { "type": "string" },
+        "appointmentId": { "type": "string" },
+        "facilityId": { "type": "string" },
+        "outsourceProviderId": { "type": "string" },
+        "status": { "type": "string", "enum": ["reserved", "finalized"] },
+        "reservedByUid": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["reservationId", "appointmentId", "facilityId", "outsourceProviderId", "status"]
     },
     "rheumatology_appointments": {
       "title": "Rheumatology Appointments",
@@ -300,6 +333,14 @@
     "/outsource_reports/{docId}": {
       "schema": "outsource_appointments",
       "description": "Additional diagnostic report details for outsourced entries"
+    },
+    "/outsource_providers/{providerId}": {
+      "schema": "outsource_providers",
+      "description": "Canonical directory of approved external diagnostic providers"
+    },
+    "/outsource_upload_reservations/{reservationId}": {
+      "schema": "outsource_upload_reservations",
+      "description": "Atomic backend upload reservations for outsource reports"
     }
   }
 }

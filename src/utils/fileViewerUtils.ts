@@ -18,11 +18,11 @@ export function dataUrlToBlob(
     const parts = dataUrl.split(",");
     if (parts.length < 2) return null;
 
-    const header = parts[0];
-    const base64Data = parts[1];
+    const header = parts[0]!;
+    const base64Data = parts[1]!;
 
     const mimeMatch = header.match(/data:(.*?);/);
-    let mimeType = mimeMatch ? mimeMatch[1] : fallbackMime;
+    let mimeType = mimeMatch?.[1] ?? fallbackMime;
 
     if (mimeType === "application/octet-stream") {
       mimeType = fallbackMime;
