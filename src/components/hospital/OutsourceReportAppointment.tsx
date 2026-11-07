@@ -38,6 +38,7 @@ import {
   updateAppointment,
   deleteAppointment,
   AppointmentRecord,
+  AppointmentReadScope,
 } from "@/services/firebaseAppointments";
 import { OutsourceFormModal } from "./OutsourceFormModal";
 import {

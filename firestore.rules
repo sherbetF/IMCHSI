@@ -128,7 +128,8 @@ allow update: if isSignedIn() &&
           'scheduledDate',
           'rejectReason',
           'rejectedBy',
-          'updatedAt'
+          'updatedAt',
+          'resultFile'
         ]);
     }
 
@@ -153,8 +154,7 @@ allow update: if isSignedIn() &&
       return isAdmin() || (
         canParamedicNurseUpdateRecord(existingRecord, incomingRecord) &&
         (!changed.hasAny(['status']) || (
-          isValidNiclStatus(incomingRecord.status) &&
-          incomingRecord.status != 'Completed - Result Ready'
+          isValidNiclStatus(incomingRecord.status)
         )) &&
         (!changed.hasAny(['status']) || incomingRecord.status != 'Scheduled' ||
           ('scheduledDate' in incomingRecord && isValidNiclScheduledDate(incomingRecord.scheduledDate))) &&
@@ -163,6 +163,8 @@ allow update: if isSignedIn() &&
            incomingRecord.rejectReason.size() > 0 && incomingRecord.rejectReason.size() <= 1000 &&
            'rejectedBy' in incomingRecord && incomingRecord.rejectedBy is string &&
            incomingRecord.rejectedBy.size() > 0 && incomingRecord.rejectedBy.size() <= 100)) &&
+        (!changed.hasAny(['status']) || incomingRecord.status != 'Completed - Result Ready' ||
+          ('resultFile' in incomingRecord && incomingRecord.resultFile is map)) &&
         (!changed.hasAny(['scheduledDate']) || (
           isValidNiclScheduledDate(incomingRecord.scheduledDate)
         )) &&
@@ -179,6 +181,13 @@ allow update: if isSignedIn() &&
         (!changed.hasAny(['updatedAt']) || (
           incomingRecord.updatedAt is string &&
           incomingRecord.updatedAt.size() <= 64
+        )) &&
+        (!changed.hasAny(['resultFile']) || (
+          incomingRecord.resultFile is map &&
+          'fileName' in incomingRecord.resultFile &&
+          incomingRecord.resultFile.fileName is string &&
+          incomingRecord.resultFile.fileName.size() > 0 &&
+          incomingRecord.resultFile.fileName.size() <= 200
         ))
       );
     }

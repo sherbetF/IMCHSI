@@ -195,17 +195,64 @@ const RHEUMATOLOGY_COLLECTION = "rheumatology_appointments";
 export type SubscriptionStatus =
   "loading" | "success" | "empty" | "authenticationRequired" | "permissionDenied" | "error";
 
+export type AppointmentReadScope =
+  | { type: "central" }
+  | { type: "facility"; facilityId: string };
+
 export function subscribeToAppointments(
   collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
-  facilityId: string | null,
-  viewAll: boolean,
-  callback: (data: AppointmentRecord[], status?: SubscriptionStatus) => void,
+  facilityIdOrScope: string | null | AppointmentReadScope,
+  viewAllOrCallback: boolean | ((data: AppointmentRecord[], status?: SubscriptionStatus) => void),
+  callbackParam?: (data: AppointmentRecord[], status?: SubscriptionStatus) => void,
 ): Unsubscribe {
+  // Normalize arguments whether called with (col, facilityId, viewAll, cb) or (col, scope, cb)
+  let actualFacilityId: string | null = null;
+  let actualViewAll = false;
+  let actualCallback: ((data: AppointmentRecord[], status?: SubscriptionStatus) => void) | undefined;
+
+  if (typeof viewAllOrCallback === "function") {
+    // 3-argument signature: (collectionName, scope, callback)
+    actualCallback = viewAllOrCallback;
+    if (facilityIdOrScope && typeof facilityIdOrScope === "object") {
+      if (facilityIdOrScope.type === "central") {
+        actualViewAll = true;
+        actualFacilityId = null;
+      } else {
+        actualViewAll = false;
+        actualFacilityId = facilityIdOrScope.facilityId || null;
+      }
+    } else {
+      actualFacilityId = typeof facilityIdOrScope === "string" ? facilityIdOrScope : null;
+      actualViewAll = false;
+    }
+  } else {
+    // 4-argument signature: (collectionName, facilityId, viewAll, callback)
+    actualViewAll = Boolean(viewAllOrCallback);
+    actualCallback = callbackParam;
+    if (facilityIdOrScope && typeof facilityIdOrScope === "object") {
+      if (facilityIdOrScope.type === "central") {
+        actualViewAll = true;
+        actualFacilityId = null;
+      } else {
+        actualViewAll = false;
+        actualFacilityId = facilityIdOrScope.facilityId || null;
+      }
+    } else {
+      actualFacilityId = typeof facilityIdOrScope === "string" ? facilityIdOrScope : null;
+    }
+  }
+
+  const safeCallback = (data: AppointmentRecord[], status?: SubscriptionStatus) => {
+    if (typeof actualCallback === "function") {
+      actualCallback(data, status);
+    }
+  };
+
   // CRITICAL Firebase Integration Guideline:
   // Only attach onSnapshot listeners if auth is ready and user is authenticated.
   const currentAuth = getFirebaseAuth();
   if (!currentAuth?.currentUser) {
-    callback([], "authenticationRequired");
+    safeCallback([], "authenticationRequired");
     return () => {};
   }
 
@@ -227,14 +274,14 @@ export function subscribeToAppointments(
   const colRef = collection(db, colName);
 
   let q;
-  if (viewAll) {
+  if (actualViewAll) {
     q = query(colRef);
-  } else if (facilityId) {
-    q = query(colRef, where("facilityId", "==", facilityId));
+  } else if (actualFacilityId) {
+    q = query(colRef, where("facilityId", "==", actualFacilityId));
   } else {
     // Non-admin without selected facility context loaded yet:
     // Do not run an unfiltered query. Pass empty array and loading status.
-    callback([], "loading");
+    safeCallback([], "loading");
     return () => {};
   }
 
@@ -248,7 +295,7 @@ export function subscribeToAppointments(
       // Sort newest first
       records.sort((a, b) => parseDateToTimestamp(b.createdAt) - parseDateToTimestamp(a.createdAt));
       const status: SubscriptionStatus = records.length === 0 ? "empty" : "success";
-      callback(records, status);
+      safeCallback(records, status);
     },
     (error) => {
       let status: SubscriptionStatus = "error";
@@ -260,7 +307,7 @@ export function subscribeToAppointments(
       } catch (err) {
         console.warn(`Firestore subscription note for ${colName}:`, err);
       }
-      callback([], status);
+      safeCallback([], status);
     },
   );
 

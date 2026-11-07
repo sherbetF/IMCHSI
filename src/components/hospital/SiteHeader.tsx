@@ -149,7 +149,12 @@ export function SiteHeader() {
 
   const filteredNav = [
     ...nav,
-    ...(isAdmin ? [{ label: "Account Manager", to: "/admin-facilities" as const }] : []),
+    ...(isAdmin
+      ? [
+          { label: "Account Manager", to: "/admin-facilities" as const },
+          { label: "Census", to: "/admin-census" as const },
+        ]
+      : []),
   ];
 
   return (
@@ -204,8 +209,8 @@ export function SiteHeader() {
               className="h-8 w-auto object-contain shrink-0"
               onError={(e) => {
                 const target = e.currentTarget;
-                if (!target.dataset['triedFallback']) {
-                  target.dataset['triedFallback'] = "true";
+                if (!target.dataset["triedFallback"]) {
+                  target.dataset["triedFallback"] = "true";
                   target.src = "/jata-negara.png";
                 }
               }}

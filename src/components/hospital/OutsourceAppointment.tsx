@@ -30,6 +30,7 @@ import {
   createAppointment,
   updateAppointment,
   AppointmentRecord,
+  AppointmentReadScope,
 } from "@/services/firebaseAppointments";
 import { EchoFormModal } from "./EchoFormModal";
 import { openPdfInNewTab, openReportFormInNewTab } from "@/utils/fileViewerUtils";

@@ -21,11 +21,11 @@ import {
   Copy,
   Stethoscope,
   ArrowLeft,
+  ClipboardList,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { useFacility } from "@/context/FacilityContext";
-import { AdminChangePasswordModal } from "./AdminChangePasswordModal";
 import { toast } from "sonner";
 
 export type ManagedAccountStatus =
@@ -161,7 +161,6 @@ let cachedManagedAccountsData: ListManagedAccountsResponse | null = null;
 
 export function FacilityAccountManager() {
   const { isAdmin } = useFacility();
-  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
   const [data, setData] = useState<ListManagedAccountsResponse | null>(
     () => cachedManagedAccountsData,
   );
@@ -512,50 +511,50 @@ export function FacilityAccountManager() {
     switch (status) {
       case "ACTIVE":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             ACTIVE
           </span>
         );
       case "INACTIVE":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             INACTIVE
           </span>
         );
       case "NOT_CREATED":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-            <XCircle className="w-3.5 h-3.5 text-slate-400" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-muted-foreground border border-border">
+            <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
             NOT CREATED
           </span>
         );
       case "CONFLICT":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-destructive/15 text-destructive border border-destructive/30 animate-pulse">
+            <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
             CONFLICT
           </span>
         );
       case "SECURITY_MISMATCH":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-            <AlertTriangle className="w-3.5 h-3.5 text-purple-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30">
+            <AlertTriangle className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
             SECURITY MISMATCH
           </span>
         );
       case "PARTIAL_MISSING_PROFILE":
       case "PARTIAL_MISSING_AUTH":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
-            <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-800 dark:text-orange-300 border border-orange-500/30">
+            <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
             PARTIAL
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface text-muted-foreground border border-border">
             {status}
           </span>
         );
@@ -584,7 +583,7 @@ export function FacilityAccountManager() {
             setCreateTarget(target);
           }}
           disabled={isSubmitting}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors shadow-2xs"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary-foreground bg-primary rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity shadow-xs cursor-pointer"
         >
           <UserPlus className="w-3.5 h-3.5" />
           Create Account
@@ -601,17 +600,17 @@ export function FacilityAccountManager() {
               setResetTarget(target);
             }}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors shadow-xs cursor-pointer"
           >
-            <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+            <KeyRound className="w-3.5 h-3.5 text-primary" />
             Reset
           </button>
           <button
             onClick={() => setDisableTarget(target)}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors shadow-xs cursor-pointer"
           >
-            <Power className="w-3.5 h-3.5 text-amber-600" />
+            <Power className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             Disable
           </button>
         </div>
@@ -627,17 +626,17 @@ export function FacilityAccountManager() {
               setResetTarget(target);
             }}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors shadow-xs cursor-pointer"
           >
-            <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+            <KeyRound className="w-3.5 h-3.5 text-primary" />
             Reset
           </button>
           <button
             onClick={() => setReactivateTarget(target)}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/25 transition-colors shadow-xs cursor-pointer"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Reactivate
           </button>
         </div>
@@ -646,10 +645,10 @@ export function FacilityAccountManager() {
 
     return (
       <span
-        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-lg"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-destructive bg-destructive/15 border border-destructive/30 rounded-lg"
         title="This account requires manual investigation before changes can be made."
       >
-        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+        <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
         Manual Review
       </span>
     );
@@ -657,158 +656,152 @@ export function FacilityAccountManager() {
 
   if (!isAdmin) {
     return (
-      <div className="p-8 max-w-4xl mx-auto text-center">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 shadow-sm">
-          <ShieldCheck className="w-12 h-12 text-amber-600 mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-amber-900 mb-2">Administrator Access Required</h2>
-          <p className="text-amber-700 text-sm max-w-md mx-auto">
-            The Facility Account Manager requires an authenticated Administrator profile from the
-            production database.
-          </p>
+      <section className="mx-auto max-w-[1200px] px-5 py-16 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4">
+          <ShieldCheck className="h-8 w-8" />
         </div>
-      </div>
+        <h2 className="text-xl font-bold text-heading">Administrator Access Required</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+          The Facility Account Manager requires an authenticated Administrator profile from the
+          production database.
+        </p>
+        <button
+          onClick={() => (window.location.href = "/")}
+          className="mt-6 rounded-lg bg-primary px-6 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          Return to Home
+        </button>
+      </section>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <section className="mx-auto max-w-[1200px] px-5 pt-4 pb-12 space-y-6">
       {/* Header & Status Bar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Facility Account Manager</h1>
-              <p className="text-sm text-slate-500">
-                Centralized account management for Consumer Facilities and Paramedic roles
-              </p>
-            </div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-bold text-heading">Facility Account Manager</h2>
+            <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+              Admin Access
+            </span>
           </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Non-Invasive Cardiovascular Laboratory • Hospital Sultan Ismail
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIsChangePasswordOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-900 bg-amber-500/10 border border-amber-500/30 rounded-xl hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors shadow-2xs cursor-pointer"
-          >
-            <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            Change My Password
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => (window.location.href = "/")}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-2xs"
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors shadow-xs cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-          <button
-            onClick={fetchManagedAccounts}
-            disabled={isLoading || isSubmitting}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors shadow-2xs"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh Status
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </button>
         </div>
       </div>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+        {/* Total Consumers */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-primary/40">
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
             Total Consumers
           </p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">
+          <p className="font-mono text-2xl font-extrabold text-heading mt-1.5">
             {data?.summary ? data.summary.totalConsumers : 84}
           </p>
-          <p className="text-xs text-slate-400 mt-0.5">84 canonical</p>
+          <p className="text-xs text-muted-foreground mt-0.5">84 canonical</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
+        {/* Active Consumers */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-emerald-500/40">
+          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
             Active Consumers
           </p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">
+          <p className="font-mono text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1.5">
             {data?.summary ? (
               data.summary.activeConsumers
             ) : (
-              <span className="inline-block w-8 h-7 bg-emerald-100/60 rounded animate-pulse" />
+              <span className="inline-block w-8 h-7 bg-muted animate-pulse rounded" />
             )}
           </p>
-          <p className="text-xs text-emerald-600/70 mt-0.5">Healthy & ready</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Healthy & ready</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Paramedic</p>
-          <p className="text-2xl font-bold text-blue-700 mt-1">
+        {/* Paramedic */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-primary/40">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider">Paramedic</p>
+          <p className="font-mono text-2xl font-extrabold text-primary mt-1.5">
             {data?.summary ? (
               `${data.summary.activeStaff} / ${data.summary.totalStaff}`
             ) : (
-              <span className="inline-block w-12 h-7 bg-blue-100/60 rounded animate-pulse" />
+              <span className="inline-block w-12 h-7 bg-muted animate-pulse rounded" />
             )}
           </p>
-          <p className="text-xs text-blue-600/70 mt-0.5">Centralized scheduling</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Centralized scheduling</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-indigo-600 uppercase tracking-wider">
+        {/* Doctor Accounts */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-primary/40">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider">
             Doctor Accounts
           </p>
-          <p className="text-2xl font-bold text-indigo-700 mt-1">
+          <p className="font-mono text-2xl font-extrabold text-primary mt-1.5">
             {data?.summary ? (
               `${data.summary.activeDoctors ?? 0} / ${data.summary.totalDoctors ?? data.doctors?.length ?? 0}`
             ) : (
-              <span className="inline-block w-12 h-7 bg-indigo-100/60 rounded animate-pulse" />
+              <span className="inline-block w-12 h-7 bg-muted animate-pulse rounded" />
             )}
           </p>
-          <p className="text-xs text-indigo-600/70 mt-0.5">Rheumatology specialists</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Rheumatology specialists</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">Inactive</p>
-          <p className="text-2xl font-bold text-amber-700 mt-1">
+        {/* Inactive */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-amber-500/40">
+          <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Inactive</p>
+          <p className="font-mono text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1.5">
             {data?.summary ? (
               data.summary.inactiveConsumers + (data.summary.inactiveDoctors ?? 0)
             ) : (
-              <span className="inline-block w-8 h-7 bg-amber-100/60 rounded animate-pulse" />
+              <span className="inline-block w-8 h-7 bg-muted animate-pulse rounded" />
             )}
           </p>
-          <p className="text-xs text-amber-600/70 mt-0.5">Disabled accounts</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Disabled accounts</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-medium text-rose-600 uppercase tracking-wider">
+        {/* Conflicts / Warn */}
+        <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-destructive/40">
+          <p className="text-xs font-bold text-destructive uppercase tracking-wider">
             Conflicts / Warn
           </p>
-          <p className="text-2xl font-bold text-rose-700 mt-1">
+          <p className="font-mono text-2xl font-extrabold text-destructive mt-1.5">
             {data?.summary ? (
               data.summary.conflictCount + data.summary.warningCount
             ) : (
-              <span className="inline-block w-8 h-7 bg-rose-100/60 rounded animate-pulse" />
+              <span className="inline-block w-8 h-7 bg-muted animate-pulse rounded" />
             )}
           </p>
-          <p className="text-xs text-rose-600/70 mt-0.5">Requires audit</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Requires audit</p>
         </div>
       </div>
 
       {/* Role Navigation Tabs */}
-      <div className="flex border-b border-slate-200 gap-2 overflow-x-auto pb-0">
+      <div className="flex border-b border-border gap-2 overflow-x-auto pb-0">
         <button
           type="button"
           onClick={() => setActiveTab("FACILITIES")}
-          className={`flex items-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 py-3 px-4 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap cursor-pointer ${
             activeTab === "FACILITIES"
-              ? "border-blue-600 text-blue-700 bg-blue-50/50 rounded-t-xl font-semibold"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              ? "border-primary text-primary bg-surface/50 rounded-t-lg"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
           }`}
         >
           <Building2 className="w-4 h-4" />
           <span>Consumer / Facility</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted-foreground font-mono">
             {data?.summary.totalConsumers ?? 84}
           </span>
         </button>
@@ -816,15 +809,15 @@ export function FacilityAccountManager() {
         <button
           type="button"
           onClick={() => setActiveTab("STAFF")}
-          className={`flex items-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 py-3 px-4 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap cursor-pointer ${
             activeTab === "STAFF"
-              ? "border-blue-600 text-blue-700 bg-blue-50/50 rounded-t-xl font-semibold"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              ? "border-primary text-primary bg-surface/50 rounded-t-lg"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
           }`}
         >
           <Users className="w-4 h-4" />
           <span>Paramedic</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-muted-foreground font-mono">
             {data?.summary.totalStaff ?? 1}
           </span>
         </button>
@@ -832,47 +825,49 @@ export function FacilityAccountManager() {
         <button
           type="button"
           onClick={() => setActiveTab("DOCTORS")}
-          className={`flex items-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 py-3 px-4 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap cursor-pointer ${
             activeTab === "DOCTORS"
-              ? "border-blue-600 text-blue-700 bg-blue-50/50 rounded-t-xl font-semibold"
-              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              ? "border-primary text-primary bg-surface/50 rounded-t-lg"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
           }`}
         >
           <Stethoscope className="w-4 h-4" />
           <span>Doctor Accounts</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-mono font-semibold">
+          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-surface border border-border text-primary font-mono font-semibold">
             {data?.doctors?.length ?? data?.summary.totalDoctors ?? 0}
           </span>
         </button>
       </div>
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-sm flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-destructive">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold">Error Loading Managed Accounts</p>
-            <p className="text-xs mt-0.5 text-rose-700">{error}</p>
+            <h4 className="text-sm font-bold">Error Loading Managed Accounts</h4>
+            <p className="text-xs mt-0.5 text-destructive/90">{error}</p>
           </div>
         </div>
       )}
 
       {/* SECTION 1: CONSUMER / FACILITY ACCOUNTS (84 Canonical Facilities) */}
       {activeTab === "FACILITIES" && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm space-y-0">
-          <div className="p-5 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="rounded-xl border border-border bg-background overflow-hidden shadow-xs space-y-0">
+          <div className="p-4 sm:p-5 border-b border-border bg-surface/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <Building2 className="w-5 h-5 text-indigo-600" />
+              <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-slate-900">Facility / Consumer Accounts</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-heading">Facility / Consumer Accounts</h2>
                   {isLoading && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md animate-pulse">
-                      <RefreshCw className="w-2.5 h-2.5 animate-spin text-blue-600" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 rounded-md animate-pulse">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
                       Syncing
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   84 Canonical Healthcare Facilities across Johor
                 </p>
               </div>
@@ -881,22 +876,22 @@ export function FacilityAccountManager() {
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search facility name or ID..."
-                  className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-48 sm:w-60"
+                  className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-border bg-surface text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary w-48 sm:w-60 shadow-2xs"
                 />
               </div>
 
               <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="text-xs border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-surface text-foreground focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">All Categories</option>
                   <option value="Hospital">Hospital</option>
@@ -908,7 +903,7 @@ export function FacilityAccountManager() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="text-xs border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-surface text-foreground focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="ACTIVE">Active</option>
@@ -922,8 +917,8 @@ export function FacilityAccountManager() {
 
           {/* Table View */}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-semibold">
+            <table className="min-w-full divide-y divide-border text-left text-sm">
+              <thead className="bg-surface/50 text-muted-foreground text-xs uppercase font-bold tracking-wider border-b border-border">
                 <tr>
                   <th className="py-3.5 px-4 sm:px-6">Facility</th>
                   <th className="py-3.5 px-4">Category</th>
@@ -932,55 +927,55 @@ export function FacilityAccountManager() {
                   <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-border bg-background">
                 {isLoading && !data ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={`facility-skeleton-${i}`} className="animate-pulse">
                       <td className="py-3.5 px-4 sm:px-6">
-                        <div className="h-4 bg-slate-200 rounded w-44 mb-1.5" />
-                        <div className="h-2.5 bg-slate-100 rounded w-24 sm:hidden" />
+                        <div className="h-4 bg-muted rounded w-44 mb-1.5" />
+                        <div className="h-2.5 bg-muted/60 rounded w-24 sm:hidden" />
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="h-5 bg-slate-100 rounded-md w-24" />
+                        <div className="h-5 bg-muted/60 rounded-md w-24" />
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="h-3.5 bg-slate-100 rounded w-28 font-mono" />
+                        <div className="h-3.5 bg-muted/60 rounded w-28 font-mono" />
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="h-6 bg-slate-100 rounded-full w-20" />
+                        <div className="h-6 bg-muted/60 rounded-full w-20" />
                       </td>
                       <td className="py-3.5 px-4 sm:px-6 text-right">
-                        <div className="h-7 bg-slate-100 rounded-lg w-20 ml-auto" />
+                        <div className="h-7 bg-muted/60 rounded-lg w-20 ml-auto" />
                       </td>
                     </tr>
                   ))
                 ) : filteredConsumers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-500 text-xs">
+                    <td colSpan={5} className="py-10 text-center text-muted-foreground text-xs">
                       No facility accounts match your search or filter criteria.
                     </td>
                   </tr>
                 ) : (
                   filteredConsumers.map((item) => (
-                    <tr key={item.facilityId} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={item.facilityId} className="hover:bg-accent/40 transition-colors">
                       <td className="py-3.5 px-4 sm:px-6">
-                        <div className="font-semibold text-slate-900">{item.facilityName}</div>
-                        <div className="text-xs text-slate-400 sm:hidden font-mono mt-0.5">
+                        <div className="font-bold text-heading">{item.facilityName}</div>
+                        <div className="text-xs text-muted-foreground sm:hidden font-mono mt-0.5">
                           {item.facilityId}
                         </div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold bg-surface border border-border text-foreground">
                           {item.category}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
                         {item.facilityId}
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1 items-start">
                           {getStatusBadge(item.status)}
-                          <span className="text-[11px] text-slate-400 max-w-xs truncate">
+                          <span className="text-[11px] text-muted-foreground max-w-xs truncate">
                             {item.statusDetails}
                           </span>
                         </div>
@@ -1006,42 +1001,44 @@ export function FacilityAccountManager() {
 
       {/* SECTION 2: PARAMEDIC / NURSE (Single Centralized Account) */}
       {activeTab === "STAFF" && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-5 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-background overflow-hidden shadow-xs">
+          <div className="p-4 sm:p-5 border-b border-border bg-surface/50 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <Users className="w-5 h-5 text-blue-600" />
+              <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Paramedic Account</h2>
-                <p className="text-xs text-slate-500">
+                <h2 className="text-base sm:text-lg font-bold text-heading">Paramedic Account</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Centralized scheduling role responsible for all facility appointments
                 </p>
               </div>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg">
               1 Centralized Account
             </span>
           </div>
 
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border bg-background">
             {data?.staff && data.staff.length > 0 ? (
               data.staff.map((s) => (
                 <div
                   key={s.accountKey}
-                  className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors"
+                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-accent/40 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100/60 text-blue-700 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
                       <UserCheck className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-slate-900">{s.displayName}</p>
+                        <p className="font-bold text-heading">{s.displayName}</p>
                         {getStatusBadge(s.status)}
                       </div>
-                      <p className="text-xs font-mono text-slate-500 mt-0.5">
+                      <p className="text-xs font-mono text-muted-foreground mt-0.5">
                         Key: {s.accountKey} • Role: Paramedic
                       </p>
-                      <p className="text-xs text-slate-600 mt-1">{s.statusDetails}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{s.statusDetails}</p>
                     </div>
                   </div>
 
@@ -1053,16 +1050,16 @@ export function FacilityAccountManager() {
             ) : isLoading && !data ? (
               <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0" />
+                  <div className="w-10 h-10 rounded-xl bg-muted shrink-0" />
                   <div className="space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-36" />
-                    <div className="h-3 bg-slate-100 rounded w-48" />
+                    <div className="h-4 bg-muted rounded w-36" />
+                    <div className="h-3 bg-muted/60 rounded w-48" />
                   </div>
                 </div>
-                <div className="h-7 bg-slate-100 rounded-lg w-20 shrink-0" />
+                <div className="h-7 bg-muted/60 rounded-lg w-20 shrink-0" />
               </div>
             ) : (
-              <div className="p-8 text-center text-sm text-slate-500">
+              <div className="p-8 text-center text-sm text-muted-foreground">
                 No staff accounts returned.
               </div>
             )}
@@ -1072,15 +1069,15 @@ export function FacilityAccountManager() {
 
       {/* SECTION 3: DOCTOR ACCOUNTS (Individual Rheumatology Doctors) */}
       {activeTab === "DOCTORS" && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm space-y-0">
-          <div className="p-5 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="rounded-xl border border-border bg-background overflow-hidden shadow-xs space-y-0">
+          <div className="p-4 sm:p-5 border-b border-border bg-surface/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
                 <Stethoscope className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Doctor Accounts</h2>
-                <p className="text-xs text-slate-500">
+                <h2 className="text-base sm:text-lg font-bold text-heading">Doctor Accounts</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Manage individual Rheumatology Doctor accounts
                 </p>
               </div>
@@ -1089,20 +1086,20 @@ export function FacilityAccountManager() {
             {/* Doctor Controls */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={doctorSearchQuery}
                   onChange={(e) => setDoctorSearchQuery(e.target.value)}
                   placeholder="Search doctor name or ID..."
-                  className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-56"
+                  className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-border bg-surface text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary w-44 sm:w-56 shadow-2xs"
                 />
               </div>
 
               <select
                 value={doctorStatusFilter}
                 onChange={(e) => setDoctorStatusFilter(e.target.value)}
-                className="text-xs border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-surface text-foreground focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="ACTIVE">Active</option>
@@ -1112,6 +1109,7 @@ export function FacilityAccountManager() {
               </select>
 
               <button
+                type="button"
                 onClick={() => {
                   resetFormState();
                   setCreateTarget({
@@ -1122,10 +1120,10 @@ export function FacilityAccountManager() {
                   });
                 }}
                 disabled={isSubmitting}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                Create Doctor
+                <span>Create Doctor</span>
               </button>
             </div>
           </div>
@@ -1156,8 +1154,8 @@ export function FacilityAccountManager() {
 
           {/* Table View */}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-semibold">
+            <table className="min-w-full divide-y divide-border text-left text-sm">
+              <thead className="bg-surface/50 text-muted-foreground text-xs uppercase font-bold tracking-wider border-b border-border">
                 <tr>
                   <th className="py-3.5 px-4 sm:px-6">Doctor Name</th>
                   <th className="py-3.5 px-4">Doctor ID</th>
@@ -1165,7 +1163,7 @@ export function FacilityAccountManager() {
                   <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-border bg-background">
                 {isLoading && !data ? (
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={`doctor-skeleton-${i}`} className="animate-pulse">
@@ -1176,10 +1174,10 @@ export function FacilityAccountManager() {
                         <div className="h-3.5 bg-slate-100 rounded w-24 font-mono" />
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="h-6 bg-slate-100 rounded-full w-20" />
+                        <div className="h-6 bg-muted/60 rounded-full w-20" />
                       </td>
                       <td className="py-3.5 px-4 sm:px-6 text-right">
-                        <div className="h-7 bg-slate-100 rounded-lg w-20 ml-auto" />
+                        <div className="h-7 bg-muted/60 rounded-lg w-20 ml-auto" />
                       </td>
                     </tr>
                   ))
@@ -1187,16 +1185,16 @@ export function FacilityAccountManager() {
                   <tr>
                     <td colSpan={4} className="py-12 text-center">
                       <div className="max-w-sm mx-auto space-y-3">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                          <Stethoscope className="w-6 h-6" />
+                        <div className="w-12 h-12 rounded-xl bg-surface border border-border flex items-center justify-center mx-auto text-muted-foreground">
+                          <Stethoscope className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-slate-800 text-sm">
+                          <h3 className="font-bold text-heading text-sm">
                             {doctorSearchQuery || doctorStatusFilter !== "ALL"
                               ? "No matching Doctor accounts"
                               : "No Doctor accounts have been created yet"}
                           </h3>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             {doctorSearchQuery || doctorStatusFilter !== "ALL"
                               ? "Try clearing your search query or status filter."
                               : "Create a Rheumatology Doctor account to allow specialists to review incoming referrals."}
@@ -1204,6 +1202,7 @@ export function FacilityAccountManager() {
                         </div>
                         {!doctorSearchQuery && doctorStatusFilter === "ALL" && (
                           <button
+                            type="button"
                             onClick={() => {
                               resetFormState();
                               setCreateTarget({
@@ -1213,10 +1212,10 @@ export function FacilityAccountManager() {
                                 currentStatus: "NOT_CREATED",
                               });
                             }}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-2xs"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
                           >
                             <UserPlus className="w-3.5 h-3.5" />
-                            Create First Doctor
+                            <span>Create First Doctor</span>
                           </button>
                         )}
                       </div>
@@ -1224,30 +1223,30 @@ export function FacilityAccountManager() {
                   </tr>
                 ) : (
                   filteredDoctors.map((docItem) => (
-                    <tr key={docItem.doctorId} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={docItem.doctorId} className="hover:bg-accent/40 transition-colors">
                       <td className="py-3.5 px-4 sm:px-6">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
                             {docItem.displayName.replace(/^Dr\.?\s*/i, "").charAt(0) || "D"}
                           </div>
                           <div>
-                            <div className="font-semibold text-slate-900">
+                            <div className="font-bold text-heading">
                               {docItem.displayName}
                             </div>
-                            <div className="text-[11px] text-slate-400 sm:hidden font-mono mt-0.5">
+                            <div className="text-[11px] text-muted-foreground sm:hidden font-mono mt-0.5">
                               {docItem.doctorId}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
                         {docItem.doctorId}
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1 items-start">
                           {getStatusBadge(docItem.status)}
                           <span
-                            className="text-[11px] text-slate-400 max-w-xs truncate"
+                            className="text-[11px] text-muted-foreground max-w-xs truncate"
                             title={docItem.statusDetails}
                           >
                             {docItem.statusDetails}
@@ -1275,11 +1274,11 @@ export function FacilityAccountManager() {
 
       {/* CREATE ACCOUNT MODAL */}
       {createTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-background rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-5 text-foreground">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
                   {createTarget.accountType === "DOCTOR" ? (
                     <Stethoscope className="w-5 h-5" />
                   ) : (
@@ -1287,12 +1286,12 @@ export function FacilityAccountManager() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-heading">
                     {createTarget.accountType === "DOCTOR"
                       ? "Create Doctor Account"
                       : "Create Account"}
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {createTarget.accountType === "DOCTOR"
                       ? "Rheumatology Specialist"
                       : createTarget.displayName}
@@ -1300,9 +1299,10 @@ export function FacilityAccountManager() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={resetFormState}
                 disabled={isSubmitting}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1310,27 +1310,27 @@ export function FacilityAccountManager() {
 
             {lastOperationSuccess ? (
               <div className="py-4 space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
+                <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-4 text-center space-y-2">
                   <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                  <h4 className="font-bold text-emerald-900">
+                  <h4 className="font-bold text-emerald-800 dark:text-emerald-300">
                     {createTarget.accountType === "DOCTOR"
                       ? "Doctor Account Created Successfully"
                       : "Account Created Successfully"}
                   </h4>
-                  <p className="text-xs text-emerald-800">
+                  <p className="text-xs text-emerald-800 dark:text-emerald-300">
                     The account for <strong>{createTarget.displayName || formDisplayName}</strong>{" "}
                     is now ready.
                   </p>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
                   {createTarget.accountType === "DOCTOR" && createdDoctorId && (
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">
+                      <p className="text-[11px] font-bold text-heading uppercase tracking-wider">
                         Doctor ID (Login Identifier)
                       </p>
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-slate-800 select-all">
+                        <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 font-mono text-sm text-heading select-all">
                           {createdDoctorId}
                         </div>
                         <button
@@ -1338,7 +1338,7 @@ export function FacilityAccountManager() {
                             navigator.clipboard.writeText(createdDoctorId);
                             toast.success("Doctor ID copied to clipboard");
                           }}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100 shadow-2xs"
+                          className="p-2 text-primary hover:bg-accent rounded-lg transition-colors border border-border shadow-2xs cursor-pointer"
                           title="Copy to clipboard"
                         >
                           <Copy className="w-4 h-4" />
@@ -1348,13 +1348,13 @@ export function FacilityAccountManager() {
                   )}
 
                   <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">
+                    <p className="text-[11px] font-bold text-heading uppercase tracking-wider">
                       {createTarget.accountType === "CONSUMER"
                         ? "Temporary Password"
                         : "Account Password"}
                     </p>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-slate-800 select-all">
+                      <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 font-mono text-sm text-heading select-all">
                         {formPassword}
                       </div>
                       <button
@@ -1362,7 +1362,7 @@ export function FacilityAccountManager() {
                           navigator.clipboard.writeText(formPassword);
                           toast.success("Password copied to clipboard");
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100 shadow-2xs"
+                        className="p-2 text-primary hover:bg-accent rounded-lg transition-colors border border-border shadow-2xs cursor-pointer"
                         title="Copy to clipboard"
                       >
                         <Copy className="w-4 h-4" />
@@ -1371,10 +1371,10 @@ export function FacilityAccountManager() {
                   </div>
 
                   <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider text-rose-600">
+                    <p className="text-[11px] font-bold text-destructive uppercase tracking-wider">
                       Important Security Note
                     </p>
-                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    <p className="text-xs text-muted-foreground leading-relaxed font-medium">
                       {createTarget.accountType === "DOCTOR"
                         ? "Make sure to securely copy or provide this initial password to the doctor. It will not be shown again."
                         : createTarget.accountType === "CONSUMER"
@@ -1385,8 +1385,9 @@ export function FacilityAccountManager() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={resetFormState}
-                  className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                  className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   Close Manager
                 </button>
@@ -1395,7 +1396,7 @@ export function FacilityAccountManager() {
               <form onSubmit={handleCreateAccount} className="space-y-4">
                 {createTarget.accountType === "DOCTOR" ? (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-foreground mb-1">
                       Doctor Display Name <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -1406,30 +1407,30 @@ export function FacilityAccountManager() {
                       placeholder="e.g. Dr. Sarah Jenkins"
                       minLength={2}
                       maxLength={100}
-                      className="w-full text-sm border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-sm border border-border bg-surface text-foreground rounded-lg px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:border-primary"
                     />
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       Full name or professional title (2–100 characters). Doctor ID will be securely
                       generated on the server.
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-foreground mb-1">
                       Canonical Identity
                     </label>
                     <input
                       type="text"
                       disabled
                       value={createTarget.identifier}
-                      className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-500"
+                      className="w-full text-xs font-mono bg-surface border border-border rounded-lg px-3 py-2 text-muted-foreground"
                     />
                   </div>
                 )}
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-700">
+                    <label className="text-xs font-semibold text-foreground">
                       {createTarget.accountType === "CONSUMER"
                         ? "Temporary Password"
                         : "New Password"}
@@ -1437,7 +1438,7 @@ export function FacilityAccountManager() {
                     <button
                       type="button"
                       onClick={generateSecureRandomPassword}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       Auto Generate
@@ -1454,18 +1455,18 @@ export function FacilityAccountManager() {
                           ? "Enter temporary password"
                           : "Enter secure password"
                       }
-                      className="w-full text-sm border border-slate-300 rounded-xl px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-sm border border-border bg-surface text-foreground rounded-lg px-3 py-2 pr-10 placeholder:text-muted-foreground focus:outline-none focus:border-primary"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                   {createTarget.accountType === "CONSUMER" && (
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       The facility will use this temporary password for the first login and will
                       then be required to create its own private password.
                     </p>
@@ -1473,7 +1474,7 @@ export function FacilityAccountManager() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-foreground mb-1">
                     Confirm Password
                   </label>
                   <input
@@ -1482,13 +1483,13 @@ export function FacilityAccountManager() {
                     onChange={(e) => setFormConfirmPassword(e.target.value)}
                     required
                     placeholder="Re-enter password"
-                    className="w-full text-sm border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-sm border border-border bg-surface text-foreground rounded-lg px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:border-primary"
                   />
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-                  <p className="font-semibold text-slate-800">Password Policy:</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-slate-600 text-[11px]">
+                <div className="bg-surface p-3 rounded-xl border border-border text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-heading">Password Policy:</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
                     <li>Minimum 8 characters</li>
                     <li>At least one alphabetic letter</li>
                     <li>At least one numeric digit</li>
@@ -1497,7 +1498,7 @@ export function FacilityAccountManager() {
                 </div>
 
                 {actionError && (
-                  <div className="bg-rose-50 text-rose-700 text-xs p-3 rounded-xl border border-rose-200">
+                  <div className="bg-destructive/15 text-destructive text-xs p-3 rounded-xl border border-destructive/30">
                     {actionError}
                   </div>
                 )}
@@ -1507,14 +1508,14 @@ export function FacilityAccountManager() {
                     type="button"
                     onClick={resetFormState}
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                    className="px-4 py-2 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                    className="px-4 py-2 text-xs font-bold text-primary-foreground bg-primary rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5 cursor-pointer"
                   >
                     {isSubmitting ? (
                       <>
@@ -1536,20 +1537,20 @@ export function FacilityAccountManager() {
 
       {/* RESET PASSWORD MODAL */}
       {resetTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-background rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-5 text-foreground">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-heading">
                     {resetTarget.accountType === "CONSUMER"
                       ? "Reset to Temporary Password"
                       : "Reset Password"}
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {resetTarget.accountType === "DOCTOR"
                       ? `Doctor ${resetTarget.displayName}`
                       : resetTarget.displayName}
@@ -1557,9 +1558,10 @@ export function FacilityAccountManager() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={resetFormState}
                 disabled={isSubmitting}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1567,14 +1569,14 @@ export function FacilityAccountManager() {
 
             {lastOperationSuccess ? (
               <div className="py-4 space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
+                <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-4 text-center space-y-2">
                   <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                  <h4 className="font-bold text-emerald-900">
+                  <h4 className="font-bold text-emerald-800 dark:text-emerald-300">
                     {resetTarget.accountType === "CONSUMER"
                       ? "Temporary Password Reset Successfully"
                       : "Password Reset Successfully"}
                   </h4>
-                  <p className="text-xs text-emerald-800">
+                  <p className="text-xs text-emerald-800 dark:text-emerald-300">
                     {resetTarget.accountType === "CONSUMER" ? (
                       "The facility must sign in using this temporary password and create a new private password before accessing HospitalHub."
                     ) : (
@@ -1586,15 +1588,15 @@ export function FacilityAccountManager() {
                   </p>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
                   <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">
+                    <p className="text-[11px] font-bold text-heading uppercase tracking-wider">
                       {resetTarget.accountType === "CONSUMER"
                         ? "Temporary Password"
                         : "New Password"}
                     </p>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-slate-800 select-all">
+                      <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 font-mono text-sm text-heading select-all">
                         {formPassword}
                       </div>
                       <button
@@ -1602,7 +1604,7 @@ export function FacilityAccountManager() {
                           navigator.clipboard.writeText(formPassword);
                           toast.success("Password copied to clipboard");
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100 shadow-2xs"
+                        className="p-2 text-primary hover:bg-accent rounded-lg transition-colors border border-border shadow-2xs cursor-pointer"
                         title="Copy to clipboard"
                       >
                         <Copy className="w-4 h-4" />
@@ -1611,10 +1613,10 @@ export function FacilityAccountManager() {
                   </div>
 
                   <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider text-rose-600">
+                    <p className="text-[11px] font-bold text-destructive uppercase tracking-wider">
                       Important Security Note
                     </p>
-                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    <p className="text-xs text-muted-foreground leading-relaxed font-medium">
                       Warning: This password will not be shown again. Ensure you have copied it
                       before closing.
                     </p>
@@ -1622,8 +1624,9 @@ export function FacilityAccountManager() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={resetFormState}
-                  className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                  className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   Close Manager
                 </button>
@@ -1631,20 +1634,20 @@ export function FacilityAccountManager() {
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-foreground mb-1">
                     {resetTarget.accountType === "DOCTOR" ? "Doctor ID" : "Canonical Identity"}
                   </label>
                   <input
                     type="text"
                     disabled
                     value={resetTarget.identifier}
-                    className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-500"
+                    className="w-full text-xs font-mono bg-surface border border-border rounded-lg px-3 py-2 text-muted-foreground"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-700">
+                    <label className="text-xs font-semibold text-foreground">
                       {resetTarget.accountType === "CONSUMER"
                         ? "New Temporary Password"
                         : "New Password"}
@@ -1652,7 +1655,7 @@ export function FacilityAccountManager() {
                     <button
                       type="button"
                       onClick={generateSecureRandomPassword}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       Auto Generate
@@ -1669,12 +1672,12 @@ export function FacilityAccountManager() {
                           ? "Enter new temporary password"
                           : "Enter new password"
                       }
-                      className="w-full text-sm border border-slate-300 rounded-xl px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-sm border border-border bg-surface text-foreground rounded-lg px-3 py-2 pr-10 placeholder:text-muted-foreground focus:outline-none focus:border-primary"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -1682,7 +1685,7 @@ export function FacilityAccountManager() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-foreground mb-1">
                     Confirm New Password
                   </label>
                   <input
@@ -1691,13 +1694,13 @@ export function FacilityAccountManager() {
                     onChange={(e) => setFormConfirmPassword(e.target.value)}
                     required
                     placeholder="Re-enter new password"
-                    className="w-full text-sm border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-sm border border-border bg-surface text-foreground rounded-lg px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:border-primary"
                   />
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-                  <p className="font-semibold text-slate-800">Password Policy:</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-slate-600 text-[11px]">
+                <div className="bg-surface p-3 rounded-xl border border-border text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-heading">Password Policy:</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
                     <li>Minimum 8 characters</li>
                     <li>At least one alphabetic letter</li>
                     <li>At least one numeric digit</li>
@@ -1706,7 +1709,7 @@ export function FacilityAccountManager() {
                 </div>
 
                 {resetTarget.currentStatus === "INACTIVE" && (
-                  <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs">
+                  <div className="bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 p-3 rounded-xl text-xs">
                     <p className="font-semibold">Note for Inactive Account:</p>
                     <p className="mt-0.5">
                       Resetting the password updates credentials but does <strong>not</strong>{" "}
@@ -1717,7 +1720,7 @@ export function FacilityAccountManager() {
                 )}
 
                 {actionError && (
-                  <div className="bg-rose-50 text-rose-700 text-xs p-3 rounded-xl border border-rose-200">
+                  <div className="bg-destructive/15 text-destructive text-xs p-3 rounded-xl border border-destructive/30">
                     {actionError}
                   </div>
                 )}
@@ -1727,14 +1730,14 @@ export function FacilityAccountManager() {
                     type="button"
                     onClick={resetFormState}
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                    className="px-4 py-2 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 rounded-xl hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                    className="px-4 py-2 text-xs font-bold text-destructive-foreground bg-destructive rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5 cursor-pointer"
                   >
                     {isSubmitting ? (
                       <>
@@ -1754,17 +1757,17 @@ export function FacilityAccountManager() {
 
       {/* DISABLE ACCOUNT CONFIRMATION DIALOG */}
       {disableTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-background rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-4 text-foreground">
             <div className="flex items-center gap-3 text-amber-600">
               <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                 <Power className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-heading">
                   Disable {disableTarget.displayName}?
                 </h3>
-                <p className="text-xs text-slate-500 font-mono">
+                <p className="text-xs text-muted-foreground font-mono">
                   {disableTarget.accountType === "DOCTOR"
                     ? `Doctor ID: ${disableTarget.identifier}`
                     : disableTarget.identifier}
@@ -1772,7 +1775,7 @@ export function FacilityAccountManager() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed bg-amber-50/70 p-3 rounded-xl border border-amber-200">
+            <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed bg-amber-500/15 p-3 rounded-xl border border-amber-500/30">
               {disableTarget.accountType === "DOCTOR"
                 ? "This Doctor will no longer be able to sign in or access Rheumatology referrals. Historical clinical attribution on reviewed referrals is preserved."
                 : "This account will no longer be able to sign in to HospitalHub until reactivated by an administrator. Historical appointment records and canonical facility identity are preserved."}
@@ -1783,7 +1786,7 @@ export function FacilityAccountManager() {
                 type="button"
                 onClick={resetFormState}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1791,7 +1794,7 @@ export function FacilityAccountManager() {
                 type="button"
                 onClick={() => handleToggleActiveStatus(disableTarget, false)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 rounded-xl hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold text-destructive-foreground bg-destructive rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -1809,17 +1812,17 @@ export function FacilityAccountManager() {
 
       {/* REACTIVATE ACCOUNT CONFIRMATION DIALOG */}
       {reactivateTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-background rounded-2xl max-w-md w-full p-6 shadow-2xl border border-border space-y-4 text-foreground">
             <div className="flex items-center gap-3 text-emerald-600">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-heading">
                   Reactivate {reactivateTarget.displayName}?
                 </h3>
-                <p className="text-xs text-slate-500 font-mono">
+                <p className="text-xs text-muted-foreground font-mono">
                   {reactivateTarget.accountType === "DOCTOR"
                     ? `Doctor ID: ${reactivateTarget.identifier}`
                     : reactivateTarget.identifier}
@@ -1827,7 +1830,7 @@ export function FacilityAccountManager() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
+            <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed bg-emerald-500/15 p-3 rounded-xl border border-emerald-500/30">
               {reactivateTarget.accountType === "DOCTOR"
                 ? "Reactivation restores sign-in and referral review access for this Doctor. Existing Doctor ID and historical records remain unchanged."
                 : "Reactivation restores login access for this account. Current password is not changed."}
@@ -1838,7 +1841,7 @@ export function FacilityAccountManager() {
                 type="button"
                 onClick={resetFormState}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-foreground bg-surface border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1846,7 +1849,7 @@ export function FacilityAccountManager() {
                 type="button"
                 onClick={() => handleToggleActiveStatus(reactivateTarget, true)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -1861,13 +1864,6 @@ export function FacilityAccountManager() {
           </div>
         </div>
       )}
-
-      {/* Admin Self-Service Change Password Modal */}
-      <AdminChangePasswordModal
-        isOpen={isChangePasswordOpen}
-        onClose={() => setIsChangePasswordOpen(false)}
-      />
-    </div>
+    </section>
   );
 }
-export default FacilityAccountManager;

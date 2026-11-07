@@ -55,6 +55,7 @@ export function HolterAppointment() {
     selectedFacility,
     setSelectedFacility,
     isAdmin,
+    isParamedicNurse,
     canManageScheduling,
     setIsModalOpen,
     facilityId,
@@ -417,8 +418,10 @@ export function HolterAppointment() {
       setResultFileName("");
       setResultSummaryNotes("");
       setSelectedFile(null);
+      toast.success(`Diagnostic result uploaded for ${uploadingReq.patientName}`);
     } catch (err) {
       console.error("Failed to upload holter result to Firebase:", err);
+      toast.error("Failed to upload result");
     }
   };
 
@@ -519,6 +522,19 @@ export function HolterAppointment() {
             className="rounded-xl border border-border bg-background p-6 lg:col-span-2"
           >
             <div className="space-y-6">
+              {/* Device Availability & Urgency Advisory Notice */}
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-destructive flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
+                <div className="space-y-2 text-xs leading-relaxed">
+                  <p className="font-semibold text-destructive">
+                    Due to limited availability of functioning Holter devices and the high volume of requests, we are currently unable to accommodate urgent Holter requests. The earliest available appointment is approximately 5 months from now.
+                  </p>
+                  <p className="text-destructive/90">
+                    We apologise for the inconvenience and appreciate your understanding. If you have any inquiries , please contact us at 07-356 5000 ( Ext. 2225 or 2215 )
+                  </p>
+                </div>
+              </div>
+
               {/* Section 1: Patient Information */}
               <div className="space-y-4">
                 <h3 className="text-base font-bold text-heading border-b border-border pb-2">
@@ -603,19 +619,13 @@ export function HolterAppointment() {
                     <label className="block text-xs font-semibold text-heading">
                       Urgency Level <span className="text-destructive">*</span>
                     </label>
-                    <select
-                      value={formData.urgency}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          urgency: e.target.value as HolterRequest["urgency"],
-                        })
-                      }
-                      className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-                    >
-                      <option value="Routine">Routine (Within 2-4 months)</option>
-                      <option value="Urgent">Urgent (Within 1 month)</option>
-                    </select>
+                    <input
+                      type="text"
+                      disabled
+                      readOnly
+                      value="Routine (Within 5-6 months)"
+                      className="mt-1 w-full rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm font-semibold text-muted-foreground cursor-not-allowed pointer-events-none select-none"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
@@ -897,7 +907,7 @@ export function HolterAppointment() {
                               : "Schedule"}
                           </button>
 
-                          {isAdmin && (
+                          {(isAdmin || isParamedicNurse) && (
                             <button
                               onClick={() => {
                                 setUploadingReq(r);

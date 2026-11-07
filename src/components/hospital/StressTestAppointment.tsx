@@ -55,6 +55,7 @@ export function StressTestAppointment() {
     selectedFacility,
     setSelectedFacility,
     isAdmin,
+    isParamedicNurse,
     canManageScheduling,
     setIsModalOpen,
     facilityId,
@@ -417,8 +418,10 @@ export function StressTestAppointment() {
       setResultFileName("");
       setResultSummaryNotes("");
       setSelectedFile(null);
+      toast.success(`Diagnostic result uploaded for ${uploadingReq.patientName}`);
     } catch (err) {
       console.error("Failed to upload stress test result to Firebase:", err);
+      toast.error("Failed to upload result");
     }
   };
 
@@ -898,7 +901,7 @@ export function StressTestAppointment() {
                               : "Schedule"}
                           </button>
 
-                          {isAdmin && (
+                          {(isAdmin || isParamedicNurse) && (
                             <button
                               onClick={() => {
                                 setUploadingReq(r);

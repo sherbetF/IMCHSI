@@ -105,6 +105,57 @@ describe("Paramedic NICL Access & Authorization Security Rules Suite", () => {
     );
   });
 
+  it("Requirement 6B: Active Paramedic can upload diagnostic results for Holter and Stress Test appointments", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore({ databaseId: NAMED_DATABASE_ID } as any);
+      await db.collection("holter_appointments").doc("doc_holter_result").set({
+        id: "doc_holter_result",
+        facilityId: "TEST_FACILITY_A",
+        patientName: "Holter Patient",
+        mrn: "MRN-HOLTER-001",
+        status: "Scheduled",
+        scheduledDate: "2026-10-15 @ 09:00 AM",
+        createdAt: new Date().toISOString(),
+      });
+      await db.collection("stress_test_appointments").doc("doc_stress_result").set({
+        id: "doc_stress_result",
+        facilityId: "TEST_FACILITY_A",
+        patientName: "Stress Patient",
+        mrn: "MRN-STRESS-001",
+        status: "Scheduled",
+        scheduledDate: "2026-10-15 @ 09:00 AM",
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    const paramedicContext = testEnv.authenticatedContext(
+      SYNTHETIC_IDENTITIES.PARAMEDIC_ACTIVE.uid,
+    );
+    const paramedicDb = paramedicContext.firestore({ databaseId: NAMED_DATABASE_ID } as any);
+
+    await assertSucceeds(
+      paramedicDb.collection("holter_appointments").doc("doc_holter_result").update({
+        status: "Completed - Result Ready",
+        resultFile: {
+          fileName: "Holter_Result.pdf",
+          uploadedAt: new Date().toISOString(),
+          summaryNotes: "Normal sinus rhythm throughout",
+        },
+      }),
+    );
+
+    await assertSucceeds(
+      paramedicDb.collection("stress_test_appointments").doc("doc_stress_result").update({
+        status: "Completed - Result Ready",
+        resultFile: {
+          fileName: "Stress_Test_Result.pdf",
+          uploadedAt: new Date().toISOString(),
+          summaryNotes: "Target heart rate achieved, no ischemia",
+        },
+      }),
+    );
+  });
+
   it("SECURITY NEGATIVE: rejects invalid scheduling values", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore({ databaseId: NAMED_DATABASE_ID } as any);
