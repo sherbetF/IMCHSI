@@ -20,6 +20,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Eye,
+  Download,
 } from "lucide-react";
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
@@ -38,11 +40,16 @@ import {
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
+import { compressResultFile } from "@/utils/fileCompressor";
+import { openPdfInNewTab, downloadBlobFile } from "@/utils/fileViewerUtils";
 
 export type TestResultFile = {
   fileName: string;
   uploadedAt: string;
   summaryNotes: string;
+  dataUrl?: string;
+  originalSizeFormatted?: string;
+  compressedSizeFormatted?: string;
 };
 
 export type BloodPressureRequest = AppointmentRecord;
@@ -163,18 +170,23 @@ export function BloodPressureAppointment() {
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    const newResult: TestResultFile = {
-      fileName: file.name,
-      uploadedAt: getLocalDateTimeString(),
-      summaryNotes: `${file.name} attached.`,
-    };
-
+    toast.info("Compressing and uploading result file...");
     try {
+      const compressed = await compressResultFile(file);
+      const newResult: TestResultFile = {
+        fileName: compressed.fileName,
+        uploadedAt: getLocalDateTimeString(),
+        summaryNotes: `${compressed.fileName} attached.`,
+        dataUrl: compressed.dataUrl,
+        originalSizeFormatted: compressed.originalSizeFormatted,
+        compressedSizeFormatted: compressed.compressedSizeFormatted,
+      };
+
       await updateAppointment("bp", req.id, {
         resultFile: newResult,
         status: "Completed - Result Ready",
       });
-      toast.success(`Diagnostic report attached for ${req.patientName}`);
+      toast.success(`Diagnostic report attached and synced for ${req.patientName}`);
     } catch (err) {
       console.error("Failed to upload blood pressure result to Firebase:", err);
       toast.error("Failed to upload result");
@@ -430,17 +442,32 @@ export function BloodPressureAppointment() {
 
   const handleSaveResult = async (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveFileName = selectedFile?.name || resultFileName || "ABPM_Result.pdf";
     if (!uploadingReq) return;
-    const newResult: TestResultFile = {
-      fileName: effectiveFileName,
-      uploadedAt: getLocalDateTimeString(),
-      summaryNotes:
-        resultSummaryNotes.trim() ||
-        "24 Hours Ambulatory Blood Pressure diagnostic report attached.",
-    };
+    if (!selectedFile && !resultFileName) {
+      toast.error("Please select a diagnostic result report to upload.");
+      return;
+    }
 
     try {
+      let dataUrl = "";
+      let effectiveFileName = selectedFile?.name || resultFileName || "ABPM_Result.pdf";
+
+      if (selectedFile) {
+        toast.info("Compressing and processing result file...");
+        const compressed = await compressResultFile(selectedFile);
+        dataUrl = compressed.dataUrl;
+        effectiveFileName = compressed.fileName;
+      }
+
+      const newResult: TestResultFile = {
+        fileName: effectiveFileName,
+        uploadedAt: getLocalDateTimeString(),
+        summaryNotes:
+          resultSummaryNotes.trim() ||
+          "24 Hours Ambulatory Blood Pressure diagnostic report attached.",
+        dataUrl: dataUrl,
+      };
+
       await updateAppointment("bp", uploadingReq.id, {
         resultFile: newResult,
         status: "Completed - Result Ready",
@@ -449,7 +476,7 @@ export function BloodPressureAppointment() {
       setResultFileName("");
       setResultSummaryNotes("");
       setSelectedFile(null);
-      toast.success(`Diagnostic report attached for ${uploadingReq.patientName}`);
+      toast.success(`Diagnostic report attached and synced for ${uploadingReq.patientName}`);
     } catch (err) {
       console.error("Failed to upload blood pressure result to Firebase:", err);
       toast.error("Failed to upload result");

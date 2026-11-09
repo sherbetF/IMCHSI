@@ -154,70 +154,31 @@ async function compressDocumentFile(
   originalSizeBytes: number,
 ): Promise<CompressedFileResult> {
   const arrayBuffer = await file.arrayBuffer();
-
-  // Use browser native CompressionStream if available
-  if (typeof CompressionStream !== "undefined") {
-    try {
-      const cs = new CompressionStream("gzip");
-      const writer = cs.writable.getWriter();
-      writer.write(arrayBuffer);
-      writer.close();
-
-      const compressedResponse = new Response(cs.readable);
-      const compressedBlob = await compressedResponse.blob();
-      const compressedBuffer = await compressedBlob.arrayBuffer();
-
-      // Convert compressed ArrayBuffer to base64 Data URL
-      const bytes = new Uint8Array(compressedBuffer);
-      let binary = "";
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Str = btoa(binary);
-      const gzipDataUrl = `data:application/gzip;base64,${base64Str}`;
-
-      const compressedSizeBytes = compressedBuffer.byteLength;
-      const savingsPercent = Math.max(
-        15,
-        Math.round(((originalSizeBytes - compressedSizeBytes) / originalSizeBytes) * 100),
-      );
-
-      return {
-        fileName: file.name,
-        fileType: file.type || "application/pdf",
-        dataUrl: gzipDataUrl,
-        originalSizeBytes,
-        compressedSizeBytes,
-        originalSizeFormatted: formatBytes(originalSizeBytes),
-        compressedSizeFormatted: formatBytes(compressedSizeBytes),
-        compressionSavingsPercent: savingsPercent,
-        isGzipCompressed: true,
-      };
-    } catch (gzipErr) {
-      console.warn("GZIP CompressionStream failed, using raw base64 encoding:", gzipErr);
-    }
-  }
-
-  // Fallback if CompressionStream is unsupported
   const bytes = new Uint8Array(arrayBuffer);
+
+  // Use chunked string conversion to avoid stack overflow on large files
   let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + chunkSize) as unknown as number[],
+    );
   }
+
   const base64Str = btoa(binary);
-  const rawDataUrl = `data:${file.type || "application/pdf"};base64,${base64Str}`;
-  const estimatedSize = Math.round(originalSizeBytes * 0.85);
+  const fileType = file.type || "application/pdf";
+  const rawDataUrl = `data:${fileType};base64,${base64Str}`;
 
   return {
     fileName: file.name,
-    fileType: file.type || "application/pdf",
+    fileType: fileType,
     dataUrl: rawDataUrl,
     originalSizeBytes,
-    compressedSizeBytes: estimatedSize,
+    compressedSizeBytes: originalSizeBytes,
     originalSizeFormatted: formatBytes(originalSizeBytes),
-    compressedSizeFormatted: formatBytes(estimatedSize),
-    compressionSavingsPercent: 15,
+    compressedSizeFormatted: formatBytes(originalSizeBytes),
+    compressionSavingsPercent: 0,
     isGzipCompressed: false,
   };
 }

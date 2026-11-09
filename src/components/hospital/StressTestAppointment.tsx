@@ -25,6 +25,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Eye,
+  Download,
 } from "lucide-react";
 import { useFacility } from "@/context/FacilityContext";
 import { toast } from "sonner";
@@ -44,11 +46,16 @@ import {
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
+import { compressResultFile } from "@/utils/fileCompressor";
+import { openPdfInNewTab, downloadBlobFile } from "@/utils/fileViewerUtils";
 
 export type TestResultFile = {
   fileName: string;
   uploadedAt: string;
   summaryNotes: string;
+  dataUrl?: string;
+  originalSizeFormatted?: string;
+  compressedSizeFormatted?: string;
 };
 
 export type StressTestRequest = AppointmentRecord;
@@ -175,23 +182,53 @@ export function StressTestAppointment() {
     directFileInputRef.current?.click();
   };
 
+  const handleViewPdf = (resultFile?: TestResultFile) => {
+    if (!resultFile) {
+      toast.error("No result file attached.");
+      return;
+    }
+    if (!resultFile.dataUrl) {
+      toast.error("File content missing for this record. Please re-upload the result.");
+      return;
+    }
+    openPdfInNewTab(resultFile.dataUrl, resultFile.fileName);
+  };
+
+  const handleDownload = (resultFile?: TestResultFile) => {
+    if (!resultFile) {
+      toast.error("No result file attached.");
+      return;
+    }
+    if (!resultFile.dataUrl) {
+      toast.error("File content missing for this record. Please re-upload the result.");
+      return;
+    }
+    downloadBlobFile(resultFile.dataUrl, resultFile.fileName);
+    toast.success(`Downloading ${resultFile.fileName}`);
+  };
+
   const handleDirectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    const newResult: TestResultFile = {
-      fileName: file.name,
-      uploadedAt: getLocalDateTimeString(),
-      summaryNotes: `${file.name} attached.`,
-    };
-
+    toast.info("Compressing and uploading result file...");
     try {
+      const compressed = await compressResultFile(file);
+      const newResult: TestResultFile = {
+        fileName: compressed.fileName,
+        uploadedAt: getLocalDateTimeString(),
+        summaryNotes: `${compressed.fileName} attached.`,
+        dataUrl: compressed.dataUrl,
+        originalSizeFormatted: compressed.originalSizeFormatted,
+        compressedSizeFormatted: compressed.compressedSizeFormatted,
+      };
+
       await updateAppointment("stress", req.id, {
         resultFile: newResult,
         status: "Completed - Result Ready",
       });
-      toast.success(`Diagnostic result uploaded for ${req.patientName}`);
+      toast.success(`Diagnostic result uploaded and synced for ${req.patientName}`);
     } catch (err) {
       console.error("Failed to upload stress test result to Firebase:", err);
       toast.error("Failed to upload result");
@@ -446,15 +483,30 @@ export function StressTestAppointment() {
 
   const handleSaveResult = async (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveFileName = selectedFile?.name || resultFileName || "Stress_Test_Result.pdf";
     if (!uploadingReq) return;
-    const newResult: TestResultFile = {
-      fileName: effectiveFileName,
-      uploadedAt: getLocalDateTimeString(),
-      summaryNotes: resultSummaryNotes.trim() || "Stress Test report attached.",
-    };
+    if (!selectedFile && !resultFileName) {
+      toast.error("Please select a diagnostic result report to upload.");
+      return;
+    }
 
     try {
+      let dataUrl = "";
+      let effectiveFileName = selectedFile?.name || resultFileName || "Stress_Test_Result.pdf";
+
+      if (selectedFile) {
+        toast.info("Compressing and processing result file...");
+        const compressed = await compressResultFile(selectedFile);
+        dataUrl = compressed.dataUrl;
+        effectiveFileName = compressed.fileName;
+      }
+
+      const newResult: TestResultFile = {
+        fileName: effectiveFileName,
+        uploadedAt: getLocalDateTimeString(),
+        summaryNotes: resultSummaryNotes.trim() || "Stress Test report attached.",
+        dataUrl: dataUrl,
+      };
+
       await updateAppointment("stress", uploadingReq.id, {
         resultFile: newResult,
         status: "Completed - Result Ready",
@@ -463,7 +515,7 @@ export function StressTestAppointment() {
       setResultFileName("");
       setResultSummaryNotes("");
       setSelectedFile(null);
-      toast.success(`Diagnostic result uploaded for ${uploadingReq.patientName}`);
+      toast.success(`Diagnostic result uploaded and synced for ${uploadingReq.patientName}`);
     } catch (err) {
       console.error("Failed to upload stress test result to Firebase:", err);
       toast.error("Failed to upload result");
@@ -1039,6 +1091,29 @@ export function StressTestAppointment() {
                             </>
                           )}
 
+                          {r.resultFile && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleViewPdf(r.resultFile)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-xs cursor-pointer"
+                                title="View Diagnostic Result PDF"
+                                aria-label="View Result PDF"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownload(r.resultFile)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-xs cursor-pointer"
+                                title="Download Diagnostic Result"
+                                aria-label="Download Result"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+
                           {(isAdmin || isParamedicNurse || canManageScheduling) && (
                             <button
                               onClick={() => handleDirectUploadClick(r)}
@@ -1169,12 +1244,34 @@ export function StressTestAppointment() {
 
                       {r.resultFile && (
                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-xs text-emerald-700 dark:text-emerald-400 space-y-1">
-                          <div className="flex items-center gap-1.5 font-bold">
-                            <FileCheck className="h-3.5 w-3.5 shrink-0" />
-                            <span>Attached Diagnostic Result: {r.resultFile.fileName}</span>
-                            <span className="text-[10px] text-muted-foreground font-normal">
-                              ({formatDisplayDateTime(r.resultFile.uploadedAt)})
-                            </span>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 font-bold">
+                              <FileCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span>Attached Diagnostic Result: {r.resultFile.fileName}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                ({formatDisplayDateTime(r.resultFile.uploadedAt)})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleViewPdf(r.resultFile)}
+                                className="flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                                title="View Result PDF"
+                              >
+                                <Eye className="h-3 w-3" />
+                                <span>View PDF</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownload(r.resultFile)}
+                                className="flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                                title="Download Result"
+                              >
+                                <Download className="h-3 w-3" />
+                                <span>Download</span>
+                              </button>
+                            </div>
                           </div>
                           {r.resultFile.summaryNotes && (
                             <p className="text-muted-foreground text-[11px]">
