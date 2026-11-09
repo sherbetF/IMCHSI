@@ -174,7 +174,7 @@ export function LungFunctionAppointment() {
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    toast.info("Compressing and uploading result file...");
+    toast.info("Uploading result file...");
     try {
       const compressed = await compressResultFile(file);
       const newResult: TestResultFile = {
@@ -456,7 +456,7 @@ export function LungFunctionAppointment() {
       let effectiveFileName = selectedFile?.name || resultFileName || "Spirometry_Result.pdf";
 
       if (selectedFile) {
-        toast.info("Compressing and processing result file...");
+        toast.info("Attaching result file...");
         const compressed = await compressResultFile(selectedFile);
         dataUrl = compressed.dataUrl;
         effectiveFileName = compressed.fileName;

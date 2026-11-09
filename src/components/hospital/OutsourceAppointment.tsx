@@ -46,6 +46,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatAppointmentCode } from "@/utils/appointmentId";
 import { uploadReportFile, viewReportFile, deleteReportFile } from "@/services/reportStorage";
+import { compressResultFile } from "@/utils/fileCompressor";
 
 export type OutsourceReport = AppointmentRecord;
 
@@ -195,18 +196,23 @@ export function OutsourceAppointment() {
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    const newResult: TestResultFile = {
-      fileName: file.name,
-      uploadedAt: getLocalDateTimeString(),
-      summaryNotes: `${file.name} attached.`,
-    };
-
+    toast.info("Uploading report file...");
     try {
+      const compressed = await compressResultFile(file);
+      const newResult = {
+        fileName: compressed.fileName,
+        uploadedAt: getLocalDateTimeString(),
+        summaryNotes: `${compressed.fileName} attached.`,
+        dataUrl: compressed.dataUrl,
+        originalSizeBytes: compressed.originalSizeBytes,
+        originalSizeFormatted: compressed.originalSizeFormatted,
+      };
+
       await updateAppointment("outsource", req.id, {
         resultFile: newResult,
         status: "Completed - Result Ready",
       });
-      toast.success(`Report file attached for ${req.patientName}`);
+      toast.success(`Report file attached and synced for ${req.patientName}`);
     } catch (err) {
       console.error("Failed to attach report file to Firebase:", err);
       toast.error("Failed to attach report file");

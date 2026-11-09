@@ -71,10 +71,9 @@ export function DatabaseModule() {
   const [extModality, setExtModality] =
     useState<DiagnosticDatabaseItem["modality"]>("Exercise Stress Test");
 
-  // Compression & File Upload state
+  // File Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [compressedResult, setCompressedResult] = useState<CompressedFileResult | null>(null);
-  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,7 +107,7 @@ export function DatabaseModule() {
     const item = activeUploadItemRef.current;
     if (!file || !item) return;
 
-    toast.info("Compressing result file before upload...");
+    toast.info("Uploading result file...");
     try {
       const compressed = await compressResultFile(file);
       const newResult = {
@@ -117,10 +116,7 @@ export function DatabaseModule() {
         summaryNotes: `${compressed.fileName} attached.`,
         dataUrl: compressed.dataUrl,
         originalSizeBytes: compressed.originalSizeBytes,
-        compressedSizeBytes: compressed.compressedSizeBytes,
         originalSizeFormatted: compressed.originalSizeFormatted,
-        compressedSizeFormatted: compressed.compressedSizeFormatted,
-        compressionSavingsPercent: compressed.compressionSavingsPercent,
         fileType: compressed.fileType,
       };
 
@@ -136,9 +132,7 @@ export function DatabaseModule() {
         });
       }
 
-      toast.success(
-        `Diagnostic result uploaded for ${item.patientName} (${compressed.compressedSizeFormatted})`,
-      );
+      toast.success(`Diagnostic result uploaded for ${item.patientName}`);
     } catch (err) {
       console.error("Failed to upload result to Firebase:", err);
       toast.error("Failed to upload result");
@@ -156,18 +150,12 @@ export function DatabaseModule() {
     }
 
     setSelectedFile(file);
-    setIsCompressing(true);
     try {
       const result = await compressResultFile(file);
       setCompressedResult(result);
-      toast.success(
-        `File compressed: ${result.originalSizeFormatted} → ${result.compressedSizeFormatted} (${result.compressionSavingsPercent}% saved)`,
-      );
     } catch (err) {
-      console.error("File compression failed:", err);
-      toast.error("Failed to compress file. Standard file will be attached.");
-    } finally {
-      setIsCompressing(false);
+      console.error("File selection failed:", err);
+      toast.error("Failed to read file.");
     }
   };
 
@@ -570,17 +558,9 @@ export function DatabaseModule() {
                   {selectedFile ? (
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-heading">{selectedFile.name}</p>
-                      {isCompressing ? (
-                        <p className="text-xs text-primary font-semibold animate-pulse flex items-center justify-center gap-1">
-                          <RefreshCw className="h-3 w-3 animate-spin" /> Compressing file...
-                        </p>
-                      ) : compressedResult ? (
-                        <div className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                          <span>Original: {compressedResult.originalSizeFormatted}</span>
-                          <span>→</span>
-                          <span>Compressed: {compressedResult.compressedSizeFormatted}</span>
-                        </div>
-                      ) : null}
+                      <p className="text-[11px] text-muted-foreground font-semibold">
+                        File size: {formatBytes(selectedFile.size)}
+                      </p>
                     </div>
                   ) : (
                     <div>
@@ -605,7 +585,7 @@ export function DatabaseModule() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || isCompressing}
+                  disabled={isSubmitting}
                   className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
                 >
                   <Check className="h-4 w-4" />
