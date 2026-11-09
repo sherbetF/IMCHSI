@@ -46,6 +46,7 @@ import {
   formatDisplayDateTime,
   formatDisplayDateOnly,
 } from "@/utils/dateUtils";
+import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { uploadReportFile, deleteReportFile } from "@/services/reportStorage";
@@ -355,7 +356,7 @@ export function OutsourceReportAppointment() {
     const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
 
     const newReq: OutsourceReport = {
-      id: `OUT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: generateAppointmentId("OUT", selectedFacility.name, activeFacilityId),
       facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
@@ -560,6 +561,7 @@ export function OutsourceReportAppointment() {
   const filteredRequests = requests.filter((r) => {
     const q = searchQuery.toLowerCase();
     const matchSearch =
+      (r.displayId || "").toLowerCase().includes(q) ||
       r.patientName.toLowerCase().includes(q) ||
       r.mrn.toLowerCase().includes(q) ||
       r.id.toLowerCase().includes(q) ||
@@ -723,8 +725,17 @@ export function OutsourceReportAppointment() {
                   Report Successfully Stored in Database!
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Reference: <strong className="text-foreground">{submittedRef.id}</strong> •{" "}
-                  {submittedRef.reportType} from {submittedRef.hospitalOrigin}
+                  Reference:{" "}
+                  <strong className="text-foreground">
+                    {submittedRef.displayId ||
+                      formatAppointmentCode(
+                        submittedRef.id,
+                        "OUT",
+                        submittedRef.hospitalOrigin,
+                        submittedRef.facilityId,
+                      )}
+                  </strong>{" "}
+                  • {submittedRef.reportType} from {submittedRef.hospitalOrigin}
                 </p>
               </div>
             </div>
@@ -1383,7 +1394,13 @@ export function OutsourceReportAppointment() {
                                   {req.modality || "Radiology"}
                                 </span>
                                 <span className="text-[10px] font-mono text-muted-foreground">
-                                  {req.id}
+                                  {req.displayId ||
+                                    formatAppointmentCode(
+                                      req.id,
+                                      req.reportType || req.procedureType,
+                                      req.hospitalOrigin,
+                                      req.facilityId,
+                                    )}
                                 </span>
                               </div>
                             </div>
@@ -1666,7 +1683,14 @@ export function OutsourceReportAppointment() {
                     ) : (
                       <>
                         <span className="opacity-80">Previous Request ID:</span>{" "}
-                        <span className="font-bold">{duplicateOriginalId}</span>
+                        <span className="font-bold">
+                          {formatAppointmentCode(
+                            duplicateOriginalId,
+                            "OUT",
+                            selectedFacility.name,
+                            activeFacilityId,
+                          )}
+                        </span>
                       </>
                     )}
                   </div>
@@ -1728,7 +1752,15 @@ export function OutsourceReportAppointment() {
                 <div>
                   <h3 className="text-base font-bold text-heading">Reject Outsource Report</h3>
                   <p className="text-xs text-muted-foreground">
-                    Record ID: {rejectingReq.id} • {rejectingReq.patientName}
+                    Record ID:{" "}
+                    {rejectingReq.displayId ||
+                      formatAppointmentCode(
+                        rejectingReq.id,
+                        "OUT",
+                        rejectingReq.hospitalOrigin,
+                        rejectingReq.facilityId,
+                      )}{" "}
+                    • {rejectingReq.patientName}
                   </p>
                 </div>
               </div>

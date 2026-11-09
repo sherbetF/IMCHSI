@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Upload,
+  FileCheck,
   Paperclip,
   Trash2,
   ExternalLink,
@@ -43,6 +44,7 @@ import {
 } from "@/utils/dateUtils";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { formatAppointmentCode } from "@/utils/appointmentId";
 import { uploadReportFile, viewReportFile, deleteReportFile } from "@/services/reportStorage";
 
 export type OutsourceReport = AppointmentRecord;
@@ -83,13 +85,7 @@ function generateReportId(procedure: string, hospital: string): string {
 
 function formatReportId(id: string, procedure?: string, hospital?: string): string {
   if (!id) return "";
-  if (/^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}-\d{4}$/.test(id) && !id.startsWith("OUT-")) {
-    return id;
-  }
-  const testCode = getTestTypeCode(procedure || "");
-  const hospCode = getHospitalCode(hospital || "");
-  const numPart = id.replace(/[^0-9]/g, "").slice(-4) || "1001";
-  return `${testCode}-${hospCode}-${numPart}`;
+  return formatAppointmentCode(id, procedure || "OUT", hospital);
 }
 
 const OUTSOURCE_MODALITIES = [
@@ -185,7 +181,40 @@ export function OutsourceAppointment() {
   // Form preview modal state
   const [selectedFormReq, setSelectedFormReq] = useState<OutsourceReport | null>(null);
 
-  const [subStatus, setSubStatus] = useState<string>("loading");
+  // Direct file upload ref & state
+  const directFileInputRef = useRef<HTMLInputElement>(null);
+  const activeUploadReqRef = useRef<OutsourceReport | null>(null);
+
+  const handleDirectUploadClick = (r: OutsourceReport) => {
+    activeUploadReqRef.current = r;
+    directFileInputRef.current?.click();
+  };
+
+  const handleDirectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const req = activeUploadReqRef.current;
+    if (!file || !req) return;
+
+    const newResult: TestResultFile = {
+      fileName: file.name,
+      uploadedAt: getLocalDateTimeString(),
+      summaryNotes: `${file.name} attached.`,
+    };
+
+    try {
+      await updateAppointment("outsource", req.id, {
+        resultFile: newResult,
+        status: "Completed - Result Ready",
+      });
+      toast.success(`Report file attached for ${req.patientName}`);
+    } catch (err) {
+      console.error("Failed to attach report file to Firebase:", err);
+      toast.error("Failed to attach report file");
+    } finally {
+      e.target.value = "";
+      activeUploadReqRef.current = null;
+    }
+  };
 
   // Real-time Firestore sync with facility isolation
   useEffect(() => {
@@ -995,28 +1024,26 @@ export function OutsourceAppointment() {
 
                       {/* Right: Hospital / Status, Scheduled Date, Action, Toggle */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                            r.status === "Scheduled"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300/60"
-                              : r.status === "Confirmed"
-                                ? "bg-success-soft text-success"
-                                : r.status === "Pending Confirmation"
-                                  ? "bg-warning-soft text-warning"
-                                  : r.status === "Rejected"
-                                    ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                    : "bg-primary/15 text-primary border border-primary/25 font-semibold"
-                          }`}
-                        >
-                          {r.status === "Completed - Result Ready"
-                            ? r.referringDoctor || "Private Hospital / Clinic"
-                            : r.status}
-                        </span>
-
-                        {r.scheduledDate && r.scheduledDate !== "----------" && (
-                          <span className="hidden sm:flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
+                        {/* Status / Scheduled Date / Pending Icon */}
+                        {r.status === "Completed - Result Ready" ? (
+                          <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                            {r.referringDoctor || "Completed"}
+                          </span>
+                        ) : r.status === "Rejected" ? (
+                          <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
+                            Rejected
+                          </span>
+                        ) : r.scheduledDate && r.scheduledDate !== "----------" ? (
+                          <span className="flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
                             <CalendarCheck className="h-3 w-3" />
                             <span>{formatDisplayScheduledDate(r.scheduledDate)}</span>
+                          </span>
+                        ) : (
+                          <span
+                            title="Appointment date is pending"
+                            className="inline-flex items-center justify-center rounded-full bg-amber-500/10 p-1 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
                           </span>
                         )}
 
@@ -1066,22 +1093,34 @@ export function OutsourceAppointment() {
                                     : "09:00 AM",
                                 );
                               }}
-                              className="rounded-lg border border-primary/40 bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/40 bg-primary text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                              title={
+                                r.scheduledDate && r.scheduledDate !== "----------"
+                                  ? "Reschedule Appointment"
+                                  : "Schedule Appointment"
+                              }
+                              aria-label={
+                                r.scheduledDate && r.scheduledDate !== "----------"
+                                  ? "Reschedule Appointment"
+                                  : "Schedule Appointment"
+                              }
                             >
-                              {r.scheduledDate && r.scheduledDate !== "----------"
-                                ? "Reschedule"
-                                : "Schedule"}
+                              <CalendarIcon className="h-3.5 w-3.5" />
                             </button>
 
                             <button
-                              onClick={() => {
-                                setUploadingReq(r);
-                                setResultFileName(r.resultFile?.fileName || "");
-                                setSummaryNotes(r.resultFile?.summaryNotes || "");
-                              }}
-                              className="rounded-lg border border-blue-500/40 bg-blue-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-opacity"
+                              onClick={() => handleDirectUploadClick(r)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-500/40 bg-blue-600 text-white hover:bg-blue-700 transition-opacity shadow-sm"
+                              title={
+                                r.resultFile ? "Edit Uploaded Report" : "Attach Diagnostic Report"
+                              }
+                              aria-label={r.resultFile ? "Edit Report" : "Attach Report"}
                             >
-                              Attach Report
+                              {r.resultFile ? (
+                                <FileCheck className="h-3.5 w-3.5" />
+                              ) : (
+                                <Upload className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
                         )}
@@ -1351,7 +1390,14 @@ export function OutsourceAppointment() {
                     ) : (
                       <>
                         <span className="opacity-80">Previous Request ID:</span>{" "}
-                        <span className="font-bold">{duplicateOriginalId}</span>
+                        <span className="font-bold">
+                          {formatAppointmentCode(
+                            duplicateOriginalId,
+                            "OUT",
+                            selectedFacility.name,
+                            activeFacilityId,
+                          )}
+                        </span>
                       </>
                     )}
                   </div>
@@ -1548,76 +1594,14 @@ export function OutsourceAppointment() {
         </div>
       )}
 
-      {/* MODAL 5: ADMIN ATTACH REPORT / RESULT FILE MODAL */}
-      {uploadingReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600">
-                  <Upload className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-heading">Attach Completed Report File</h3>
-                  <p className="text-xs text-muted-foreground">{uploadingReq.patientName}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setUploadingReq(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-muted/20"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveResult} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-heading">
-                  Report Document / File Name <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={resultFileName}
-                  onChange={(e) => setResultFileName(e.target.value)}
-                  placeholder="e.g. MRI_Brain_Scan_Report_Razak.pdf"
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-heading">
-                  Summary / Clinical Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={summaryNotes}
-                  onChange={(e) => setSummaryNotes(e.target.value)}
-                  placeholder="e.g. Full official radiology report linked and verified."
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setUploadingReq(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:bg-accent"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
-                >
-                  Save & Complete
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Direct File Input for List Upload */}
+      <input
+        type="file"
+        ref={directFileInputRef}
+        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.dcm"
+        onChange={handleDirectFileChange}
+        className="hidden"
+      />
 
       {/* FORM PREVIEW MODAL */}
       {selectedFormReq && (

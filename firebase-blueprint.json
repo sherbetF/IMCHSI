@@ -341,6 +341,10 @@
     "/outsource_upload_reservations/{reservationId}": {
       "schema": "outsource_upload_reservations",
       "description": "Atomic backend upload reservations for outsource reports"
+    },
+    "/diagnostic_results/{docId}": {
+      "schema": "stress_test_appointments",
+      "description": "Central database repository for external and website diagnostic results"
     }
   }
 }

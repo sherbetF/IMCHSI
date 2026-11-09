@@ -1,10 +1,5 @@
-
 import { describe, it, beforeAll, afterAll, beforeEach } from "vitest";
-import {
-  RulesTestEnvironment,
-  assertSucceeds,
-  assertFails,
-} from "@firebase/rules-unit-testing";
+import { RulesTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import {
   createRealRulesTestEnvironment,
   seedSyntheticUserProfiles,
@@ -75,9 +70,7 @@ describe("Stage 10 - NICL Collection Query Security", () => {
       const db = dbFor(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE);
 
       await assertSucceeds(
-        db.collection(collectionName)
-          .where("facilityId", "==", "TEST_FACILITY_A")
-          .get()
+        db.collection(collectionName).where("facilityId", "==", "TEST_FACILITY_A").get(),
       );
     });
 
@@ -87,9 +80,7 @@ describe("Stage 10 - NICL Collection Query Security", () => {
       const db = dbFor(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE);
 
       await assertFails(
-        db.collection(collectionName)
-          .where("facilityId", "==", "TEST_FACILITY_B")
-          .get()
+        db.collection(collectionName).where("facilityId", "==", "TEST_FACILITY_B").get(),
       );
     });
 
@@ -107,9 +98,7 @@ describe("Stage 10 - NICL Collection Query Security", () => {
       const db = dbFor(SYNTHETIC_IDENTITIES.FACILITY_A_INACTIVE);
 
       await assertFails(
-        db.collection(collectionName)
-          .where("facilityId", "==", "TEST_FACILITY_A")
-          .get()
+        db.collection(collectionName).where("facilityId", "==", "TEST_FACILITY_A").get(),
       );
     });
 

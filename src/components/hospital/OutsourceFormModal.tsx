@@ -3,6 +3,7 @@ import { X, FileText, Download, FileDown, ExternalLink } from "lucide-react";
 import { AppointmentRecord } from "@/services/firebaseAppointments";
 import { calculateAgeFromIC, detectGenderFromIC, formatDateOnly } from "@/utils/echoFormGenerator";
 import { createSafeFileUrl, downloadBlobFile, openPdfInNewTab } from "@/utils/fileViewerUtils";
+import { formatAppointmentCode } from "@/utils/appointmentId";
 
 interface OutsourceFormModalProps {
   request: AppointmentRecord;
@@ -138,7 +139,14 @@ export function OutsourceFormModal({ request, onClose }: OutsourceFormModalProps
               </h2>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-4 text-xs font-medium text-neutral-700">
                 <span>
-                  <strong>Report Ref:</strong> {request.id}
+                  <strong>Report Ref:</strong>{" "}
+                  {request.displayId ||
+                    formatAppointmentCode(
+                      request.id,
+                      request.procedureType,
+                      request.facilityName,
+                      request.facilityId,
+                    )}
                 </span>
                 <span>•</span>
                 <span>

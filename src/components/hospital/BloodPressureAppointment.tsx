@@ -37,6 +37,7 @@ import {
 } from "@/services/firebaseAppointments";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
 
 export type TestResultFile = {
   fileName: string;
@@ -148,6 +149,41 @@ export function BloodPressureAppointment() {
     }
   }, [canManageScheduling]);
 
+  // Direct file upload ref & state
+  const directFileInputRef = useRef<HTMLInputElement>(null);
+  const activeUploadReqRef = useRef<BloodPressureRequest | null>(null);
+
+  const handleDirectUploadClick = (r: BloodPressureRequest) => {
+    activeUploadReqRef.current = r;
+    directFileInputRef.current?.click();
+  };
+
+  const handleDirectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const req = activeUploadReqRef.current;
+    if (!file || !req) return;
+
+    const newResult: TestResultFile = {
+      fileName: file.name,
+      uploadedAt: getLocalDateTimeString(),
+      summaryNotes: `${file.name} attached.`,
+    };
+
+    try {
+      await updateAppointment("bp", req.id, {
+        resultFile: newResult,
+        status: "Completed - Result Ready",
+      });
+      toast.success(`Diagnostic report attached for ${req.patientName}`);
+    } catch (err) {
+      console.error("Failed to upload blood pressure result to Firebase:", err);
+      toast.error("Failed to upload result");
+    } finally {
+      e.target.value = "";
+      activeUploadReqRef.current = null;
+    }
+  };
+
   // Auto-dismiss submitted reference banner after 1 minute (60s), then gradually disappear
   useEffect(() => {
     if (submittedRef) {
@@ -207,7 +243,8 @@ export function BloodPressureAppointment() {
     } else if (/[^a-zA-Z0-9]/.test(formData.mrn.trim())) {
       errors["mrn"] = "Identification No. can only contain letters and numbers (no symbols)";
     }
-    if (!formData.contactNumber.trim()) errors["contactNumber"] = "Contact phone number is required";
+    if (!formData.contactNumber.trim())
+      errors["contactNumber"] = "Contact phone number is required";
     if (!formData.referringDoctor.trim())
       errors["referringDoctor"] = "Referring doctor name is required";
     if (!formData.department.trim()) errors["department"] = "Department is required";
@@ -229,7 +266,7 @@ export function BloodPressureAppointment() {
     const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
 
     const newReq: BloodPressureRequest = {
-      id: `ABPM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: generateAppointmentId("ABPM", selectedFacility.name, activeFacilityId),
       facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
@@ -393,9 +430,10 @@ export function BloodPressureAppointment() {
 
   const handleSaveResult = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadingReq || !resultFileName) return;
+    const effectiveFileName = selectedFile?.name || resultFileName || "ABPM_Result.pdf";
+    if (!uploadingReq) return;
     const newResult: TestResultFile = {
-      fileName: resultFileName,
+      fileName: effectiveFileName,
       uploadedAt: getLocalDateTimeString(),
       summaryNotes:
         resultSummaryNotes.trim() ||
@@ -420,6 +458,7 @@ export function BloodPressureAppointment() {
 
   const filteredRequests = requests.filter((r) => {
     const matchesSearch =
+      (r.displayId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.mrn.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -489,7 +528,16 @@ export function BloodPressureAppointment() {
                 </h3>
                 <p className="mt-0.5 text-xs text-foreground">
                   Your request reference number is{" "}
-                  <span className="font-mono font-bold text-heading">{submittedRef.id}</span>.
+                  <span className="font-mono font-bold text-heading">
+                    {submittedRef.displayId ||
+                      formatAppointmentCode(
+                        submittedRef.id,
+                        "ABPM",
+                        selectedFacility.name,
+                        activeFacilityId,
+                      )}
+                  </span>
+                  .
                 </p>
               </div>
             </div>
@@ -668,7 +716,9 @@ export function BloodPressureAppointment() {
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
                   {formErrors["clinicalIndication"] && (
-                    <p className="mt-1 text-xs text-destructive">{formErrors["clinicalIndication"]}</p>
+                    <p className="mt-1 text-xs text-destructive">
+                      {formErrors["clinicalIndication"]}
+                    </p>
                   )}
                 </div>
 
@@ -792,7 +842,10 @@ export function BloodPressureAppointment() {
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs">
                     {/* Left: Ref ID, Patient Name, MRN, Urgency, Facility (if Admin) */}
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <span className="font-mono text-xs font-bold text-primary">{r.id}</span>
+                      <span className="font-mono text-xs font-bold text-primary">
+                        {r.displayId ||
+                          formatAppointmentCode(r.id, "ABPM", r.facilityName, r.facilityId)}
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-bold text-heading">{r.patientName}</span>
                         <span className="text-xs font-mono text-muted-foreground">({r.mrn})</span>
@@ -806,37 +859,34 @@ export function BloodPressureAppointment() {
                       >
                         {r.urgency}
                       </span>
-                      {canManageScheduling && (
-                        <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                          {r.facilityName}
-                        </span>
-                      )}
                     </div>
 
                     {/* Right: Status, Scheduled Date, Result Badge, Admin Actions, Toggle */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          r.status === "Scheduled"
-                            ? "bg-primary/20 text-primary border border-primary/30"
-                            : r.status === "Completed - Result Ready"
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                              : r.status === "Confirmed"
-                                ? "bg-success-soft text-success"
-                                : r.status === "Pending Confirmation"
-                                  ? "bg-warning-soft text-warning"
-                                  : r.status === "Rejected"
-                                    ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                    : "bg-accent text-accent-foreground"
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-
-                      {r.scheduledDate && r.scheduledDate !== "----------" && (
-                        <span className="hidden sm:flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
+                      {/* Status / Scheduled Date / Pending Icon */}
+                      {r.status === "Completed - Result Ready" ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                          Completed - Result Ready
+                        </span>
+                      ) : r.status === "Confirmed" ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-success-soft text-success">
+                          Confirmed
+                        </span>
+                      ) : r.status === "Rejected" ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
+                          Rejected
+                        </span>
+                      ) : r.scheduledDate && r.scheduledDate !== "----------" ? (
+                        <span className="flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
                           <CalendarCheck className="h-3 w-3" />
                           <span>{formatDisplayScheduledDate(r.scheduledDate)}</span>
+                        </span>
+                      ) : (
+                        <span
+                          title="Appointment date is pending"
+                          className="inline-flex items-center justify-center rounded-full bg-amber-500/10 p-1 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
                         </span>
                       )}
 
@@ -883,26 +933,35 @@ export function BloodPressureAppointment() {
                                   : "09:00 AM",
                               );
                             }}
-                            className="rounded-lg border border-primary/40 bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/40 bg-primary text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                            title={
+                              r.scheduledDate && r.scheduledDate !== "----------"
+                                ? "Reschedule Appointment"
+                                : "Schedule Appointment"
+                            }
+                            aria-label={
+                              r.scheduledDate && r.scheduledDate !== "----------"
+                                ? "Reschedule Appointment"
+                                : "Schedule Appointment"
+                            }
                           >
-                            {r.scheduledDate && r.scheduledDate !== "----------"
-                              ? "Reschedule"
-                              : "Schedule"}
+                            <CalendarIcon className="h-3.5 w-3.5" />
                           </button>
 
                           {isAdmin && (
                             <button
-                              onClick={() => {
-                                setUploadingReq(r);
-                                setResultFileName(
-                                  r.resultFile?.fileName ||
-                                    `ABPM_Result_${r.patientName.replace(/\s+/g, "_")}.pdf`,
-                                );
-                                setResultSummaryNotes(r.resultFile?.summaryNotes || "");
-                              }}
-                              className="rounded-lg border border-emerald-600/40 bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
+                              onClick={() => handleDirectUploadClick(r)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-600/40 bg-emerald-600 text-white hover:opacity-90 transition-opacity shadow-sm"
+                              title={
+                                r.resultFile ? "Edit Uploaded Result" : "Upload Diagnostic Result"
+                              }
+                              aria-label={r.resultFile ? "Edit Result" : "Upload Result"}
                             >
-                              {r.resultFile ? "Edit Result" : "Upload Result"}
+                              {r.resultFile ? (
+                                <FileCheck className="h-3.5 w-3.5" />
+                              ) : (
+                                <Upload className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           )}
                         </div>
@@ -1154,153 +1213,14 @@ export function BloodPressureAppointment() {
         </div>
       )}
 
-      {/* Admin Upload Result Modal */}
-      {uploadingReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <div className="flex items-center gap-2 text-heading font-bold">
-                <Upload className="h-5 w-5 text-emerald-600" />
-                <h3>Upload 24H ABPM Result</h3>
-              </div>
-              <button
-                onClick={() => setUploadingReq(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-surface"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs space-y-1">
-              <p className="font-bold text-heading">
-                {uploadingReq.patientName} ({uploadingReq.mrn})
-              </p>
-              <p className="text-muted-foreground">
-                Referring Facility: <strong>{uploadingReq.facilityName}</strong>
-              </p>
-            </div>
-
-            <form onSubmit={handleSaveResult} className="space-y-4">
-              {/* Drag and Drop / Device File Upload */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                  Diagnostic Result Document (PDF / File)
-                </label>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                  className="hidden"
-                />
-
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`group cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition-all ${
-                    isDragging
-                      ? "border-emerald-600 bg-emerald-500/10 scale-[1.01]"
-                      : "border-border bg-surface hover:border-emerald-500/50 hover:bg-surface/80"
-                  }`}
-                >
-                  {selectedFile || resultFileName ? (
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                        <FileCheck className="h-6 w-6" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-bold text-heading break-all">
-                          {selectedFile ? selectedFile.name : resultFileName}
-                        </p>
-                        {selectedFile && (
-                          <p className="text-xs text-muted-foreground">
-                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Device File
-                            Attached
-                          </p>
-                        )}
-                      </div>
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline pt-1">
-                        <Upload className="h-3.5 w-3.5" />
-                        Click or drag another file to replace
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center space-y-2 py-2">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-emerald-500/10 group-hover:text-emerald-600 transition-colors">
-                        <Upload className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-heading">
-                          Drag & drop result file here
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          or{" "}
-                          <span className="text-emerald-600 font-bold underline">
-                            browse file from device
-                          </span>
-                        </p>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground/70">
-                        Supports PDF, DOC, DOCX, PNG, JPG (Max 25MB)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                  Report File Name / Document Title
-                </label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    required
-                    value={resultFileName}
-                    onChange={(e) => setResultFileName(e.target.value)}
-                    placeholder="e.g. ABPM_Result_LeeKokKeong.pdf"
-                    className="w-full rounded-xl border border-border bg-surface pl-9 pr-3 py-2 text-sm font-medium outline-none focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-heading uppercase tracking-wider">
-                  Diagnostic Findings / Summary Remarks
-                </label>
-                <textarea
-                  rows={3}
-                  value={resultSummaryNotes}
-                  onChange={(e) => setResultSummaryNotes(e.target.value)}
-                  placeholder="e.g. Mean 24H BP 142/88 mmHg. Daytime mean 148/92, nighttime mean 128/78. Nocturnal dipping preserved (13.5% systolic dip). Borderline systolic hypertension."
-                  className="w-full rounded-xl border border-border bg-surface p-3 text-sm font-medium outline-none focus:border-emerald-600"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setUploadingReq(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90"
-                >
-                  <Check className="h-4 w-4" />
-                  Save & Publish Result to Cloud
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Direct File Input for List Upload */}
+      <input
+        type="file"
+        ref={directFileInputRef}
+        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+        onChange={handleDirectFileChange}
+        className="hidden"
+      />
 
       {/* Duplicate Justification Modal */}
       {showDuplicateModal && (
@@ -1365,7 +1285,14 @@ export function BloodPressureAppointment() {
                     ) : (
                       <>
                         <span className="opacity-80">Previous Request ID:</span>{" "}
-                        <span className="font-bold">{duplicateOriginalId}</span>
+                        <span className="font-bold">
+                          {formatAppointmentCode(
+                            duplicateOriginalId,
+                            "ABPM",
+                            selectedFacility.name,
+                            activeFacilityId,
+                          )}
+                        </span>
                       </>
                     )}
                   </div>

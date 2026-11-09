@@ -28,14 +28,15 @@ import {
   markAllNotificationsAsRead,
   UnifiedRequestNotification,
 } from "@/services/firebaseAppointments";
+import { formatAppointmentCode } from "@/utils/appointmentId";
 
 type NavItem = { label: string; to: string; isAppointmentScroll?: boolean };
 
 const nav: NavItem[] = [
   { label: "Home", to: "/" as const },
   { label: "NICL Procedure", to: "/" as const, isAppointmentScroll: true },
+  { label: "Database", to: "/database" as const },
   { label: "Outsource", to: "/outsource" as const },
-  { label: "Rheumatology", to: "/rheumatology" as const },
 ];
 
 function useClock() {
@@ -237,8 +238,8 @@ export function SiteHeader() {
                 );
               }
 
-              // Admin-only modules from Hospital navigation: Outsource & Rheumatology
-              if (item.to === "/outsource" || item.to === "/rheumatology") {
+              // Admin-only modules from Hospital navigation: Outsource
+              if (item.to === "/outsource") {
                 if (!isAdmin) {
                   return (
                     <span
@@ -411,7 +412,12 @@ export function SiteHeader() {
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-mono text-xs font-bold text-primary">
-                                  {n.rawId || n.id}
+                                  {formatAppointmentCode(
+                                    n.rawId || n.id,
+                                    n.testType,
+                                    n.facilityName,
+                                    n.facilityId,
+                                  )}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <span
@@ -527,8 +533,8 @@ export function SiteHeader() {
                 );
               }
 
-              // Admin-only modules from Hospital navigation: Outsource & Rheumatology
-              if (item.to === "/outsource" || item.to === "/rheumatology") {
+              // Admin-only modules from Hospital navigation: Outsource
+              if (item.to === "/outsource") {
                 if (!isAdmin) {
                   return (
                     <span

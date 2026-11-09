@@ -24,6 +24,7 @@ function getFirebaseAuth() {
   }
 }
 import { parseDateToTimestamp } from "@/utils/dateUtils";
+import { formatAppointmentCode } from "@/utils/appointmentId";
 
 export interface UnifiedRequestNotification {
   id: string;
@@ -97,6 +98,7 @@ export function markAllNotificationsAsRead(ids: string[]): void {
 
 export interface AppointmentRecord {
   id: string;
+  displayId?: string;
   facilityId: string;
   facilityName: string;
   facilityCategory: string;
@@ -119,12 +121,15 @@ export interface AppointmentRecord {
     | "Completed - Result Ready"
     | "Pending Doctor Review"
     | "Returned to Facility"
-    | "Awaiting Scheduling";
+    | "Awaiting Scheduling"
+    | "No Show";
   createdAt: string;
   submittedAt?: Timestamp | FieldValue | null;
   scheduledDate?: string;
   rejectReason?: string;
   rejectedBy?: string;
+  noShowReason?: string;
+  noShowAt?: string;
   resultFile?: {
     storagePath?: string;
     fileName: string;
@@ -195,9 +200,7 @@ const RHEUMATOLOGY_COLLECTION = "rheumatology_appointments";
 export type SubscriptionStatus =
   "loading" | "success" | "empty" | "authenticationRequired" | "permissionDenied" | "error";
 
-export type AppointmentReadScope =
-  | { type: "central" }
-  | { type: "facility"; facilityId: string };
+export type AppointmentReadScope = { type: "central" } | { type: "facility"; facilityId: string };
 
 export function subscribeToAppointments(
   collectionName: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "rheumatology",
@@ -208,7 +211,8 @@ export function subscribeToAppointments(
   // Normalize arguments whether called with (col, facilityId, viewAll, cb) or (col, scope, cb)
   let actualFacilityId: string | null = null;
   let actualViewAll = false;
-  let actualCallback: ((data: AppointmentRecord[], status?: SubscriptionStatus) => void) | undefined;
+  let actualCallback:
+    ((data: AppointmentRecord[], status?: SubscriptionStatus) => void) | undefined;
 
   if (typeof viewAllOrCallback === "function") {
     // 3-argument signature: (collectionName, scope, callback)
@@ -290,7 +294,17 @@ export function subscribeToAppointments(
     (snapshot) => {
       const records: AppointmentRecord[] = [];
       snapshot.forEach((docSnap) => {
-        records.push(docSnap.data() as AppointmentRecord);
+        const data = docSnap.data() as AppointmentRecord;
+        const displayId = formatAppointmentCode(
+          data.id || docSnap.id,
+          data.procedureType,
+          data.facilityName,
+          data.facilityId,
+        );
+        records.push({
+          ...data,
+          displayId,
+        });
       });
       // Sort newest first
       records.sort((a, b) => parseDateToTimestamp(b.createdAt) - parseDateToTimestamp(a.createdAt));
@@ -433,12 +447,14 @@ export function subscribeToAllPendingNotifications(
       route: UnifiedRequestNotification["route"],
     ) => {
       items.forEach((r) => {
+        const formattedCode = formatAppointmentCode(r.id, testType, r.facilityName, r.facilityId);
+
         if (viewAll) {
           // Privileged users (Admin/Paramedic) receive notifications for pending requests needing review
           if (r.status === "Pending Confirmation" || r.status === "Under Review") {
             notifs.push({
               id: `${r.id}-pending`,
-              rawId: r.id,
+              rawId: formattedCode,
               patientName: r.patientName,
               mrn: r.mrn,
               testType,
@@ -464,7 +480,7 @@ export function subscribeToAllPendingNotifications(
           if (isScheduled) {
             notifs.push({
               id: `${r.id}-scheduled-${r.scheduledDate || "done"}`,
-              rawId: r.id,
+              rawId: formattedCode,
               patientName: r.patientName,
               mrn: r.mrn,
               testType,
@@ -481,7 +497,7 @@ export function subscribeToAllPendingNotifications(
           } else if (isRejected) {
             notifs.push({
               id: `${r.id}-rejected`,
-              rawId: r.id,
+              rawId: formattedCode,
               patientName: r.patientName,
               mrn: r.mrn,
               testType,
@@ -498,7 +514,7 @@ export function subscribeToAllPendingNotifications(
           } else if (isCompleted) {
             notifs.push({
               id: `${r.id}-completed`,
-              rawId: r.id,
+              rawId: formattedCode,
               patientName: r.patientName,
               mrn: r.mrn,
               testType,
@@ -515,7 +531,7 @@ export function subscribeToAllPendingNotifications(
           } else if (isPending) {
             notifs.push({
               id: `${r.id}-pending`,
-              rawId: r.id,
+              rawId: formattedCode,
               patientName: r.patientName,
               mrn: r.mrn,
               testType,
@@ -598,4 +614,196 @@ export function subscribeToAllPendingNotifications(
     unsubOutsource();
     unsubRheumatology();
   };
+}
+
+export interface DiagnosticDatabaseItem {
+  id: string;
+  displayId: string;
+  source: "website_request" | "external_manual";
+  modality:
+    | "Echocardiogram"
+    | "Exercise Stress Test"
+    | "24H Holter"
+    | "24H Blood Pressure"
+    | "Lung Function / Spirometry"
+    | "Outsource Diagnostic"
+    | "External / Custom";
+  collectionKey: "echo" | "stress" | "holter" | "bp" | "lft" | "outsource" | "diagnostic_results";
+  patientName: string;
+  mrn: string;
+  contactNumber?: string;
+  facilityId: string;
+  facilityName: string;
+  facilityCategory?: string;
+  referringDoctor: string;
+  diagnosis?: string;
+  clinicalIndication?: string;
+  diagnosticDate: string;
+  uploadedAt: string;
+  uploadedBy?: string;
+  status: string;
+  resultFile: {
+    fileName: string;
+    uploadedAt: string;
+    summaryNotes?: string;
+    dataUrl?: string;
+    originalSizeBytes?: number;
+    compressedSizeBytes?: number;
+    originalSizeFormatted?: string;
+    compressedSizeFormatted?: string;
+    compressionSavingsPercent?: number;
+    fileType?: string;
+  };
+}
+
+const DIAGNOSTIC_RESULTS_COLLECTION = "diagnostic_results";
+
+export function subscribeToAllDatabaseResults(
+  facilityId: string | null,
+  canManageScheduling: boolean,
+  callback: (items: DiagnosticDatabaseItem[], status?: SubscriptionStatus) => void,
+): Unsubscribe {
+  const currentAuth = getFirebaseAuth();
+  if (!currentAuth?.currentUser) {
+    callback([], "authenticationRequired");
+    return () => {};
+  }
+
+  let echoItems: DiagnosticDatabaseItem[] = [];
+  let stressItems: DiagnosticDatabaseItem[] = [];
+  let holterItems: DiagnosticDatabaseItem[] = [];
+  let bpItems: DiagnosticDatabaseItem[] = [];
+  let lftItems: DiagnosticDatabaseItem[] = [];
+  let standaloneItems: DiagnosticDatabaseItem[] = [];
+
+  const updateDatabase = () => {
+    const combined: DiagnosticDatabaseItem[] = [
+      ...echoItems,
+      ...stressItems,
+      ...holterItems,
+      ...bpItems,
+      ...lftItems,
+      ...standaloneItems,
+    ];
+
+    // ONLY in database: all health facilities can access all reports from all other health facilities
+    const filtered = combined;
+
+    filtered.sort(
+      (a, b) =>
+        parseDateToTimestamp(b.uploadedAt || b.diagnosticDate) -
+        parseDateToTimestamp(a.uploadedAt || a.diagnosticDate),
+    );
+
+    callback(filtered, filtered.length === 0 ? "empty" : "success");
+  };
+
+  const mapAppointmentsToDatabaseItems = (
+    records: AppointmentRecord[],
+    modality: DiagnosticDatabaseItem["modality"],
+    colKey: DiagnosticDatabaseItem["collectionKey"],
+  ): DiagnosticDatabaseItem[] => {
+    return records
+      .filter(
+        (r) => (r.resultFile && r.resultFile.fileName) || r.status === "Completed - Result Ready",
+      )
+      .map((r) => ({
+        id: r.id,
+        displayId:
+          r.displayId || formatAppointmentCode(r.id, modality, r.facilityName, r.facilityId),
+        source: "website_request",
+        modality,
+        collectionKey: colKey,
+        patientName: r.patientName,
+        mrn: r.mrn,
+        contactNumber: r.contactNumber,
+        facilityId: r.facilityId,
+        facilityName: r.facilityName,
+        facilityCategory: r.facilityCategory,
+        referringDoctor: r.referringDoctor,
+        diagnosis: r.diagnosis,
+        clinicalIndication: r.clinicalIndication,
+        diagnosticDate: r.scheduledDate || r.createdAt,
+        uploadedAt: r.resultFile?.uploadedAt || r.createdAt,
+        status: r.status,
+        resultFile: r.resultFile || {
+          fileName: `${r.patientName} Diagnostic Report`,
+          uploadedAt: r.createdAt,
+        },
+      }));
+  };
+
+  // Pass viewAll=true (3rd param) so all facilities can read all completed results in Database
+  const unsubEcho = subscribeToAppointments("echo", null, true, (data) => {
+    echoItems = mapAppointmentsToDatabaseItems(data, "Echocardiogram", "echo");
+    updateDatabase();
+  });
+
+  const unsubStress = subscribeToAppointments("stress", null, true, (data) => {
+    stressItems = mapAppointmentsToDatabaseItems(data, "Exercise Stress Test", "stress");
+    updateDatabase();
+  });
+
+  const unsubHolter = subscribeToAppointments("holter", null, true, (data) => {
+    holterItems = mapAppointmentsToDatabaseItems(data, "24H Holter", "holter");
+    updateDatabase();
+  });
+
+  const unsubBP = subscribeToAppointments("bp", null, true, (data) => {
+    bpItems = mapAppointmentsToDatabaseItems(data, "24H Blood Pressure", "bp");
+    updateDatabase();
+  });
+
+  const unsubLFT = subscribeToAppointments("lft", null, true, (data) => {
+    lftItems = mapAppointmentsToDatabaseItems(data, "Lung Function / Spirometry", "lft");
+    updateDatabase();
+  });
+
+  // Query all standalone results without facility restriction
+  const colRef = collection(db, DIAGNOSTIC_RESULTS_COLLECTION);
+  const q = query(colRef);
+
+  const unsubStandalone = onSnapshot(
+    q,
+    (snapshot) => {
+      const items: DiagnosticDatabaseItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as DiagnosticDatabaseItem;
+        items.push({
+          ...data,
+          id: docSnap.id,
+          displayId:
+            data.displayId ||
+            formatAppointmentCode(docSnap.id, data.modality, data.facilityName, data.facilityId),
+        });
+      });
+      standaloneItems = items;
+      updateDatabase();
+    },
+    (error) => {
+      console.warn("Standalone diagnostic results snapshot note:", error);
+      updateDatabase();
+    },
+  );
+
+  return () => {
+    unsubEcho();
+    unsubStress();
+    unsubHolter();
+    unsubBP();
+    unsubLFT();
+    unsubStandalone();
+  };
+}
+
+export async function createExternalDiagnosticResult(item: DiagnosticDatabaseItem) {
+  try {
+    await setDoc(doc(db, DIAGNOSTIC_RESULTS_COLLECTION, item.id), item);
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.CREATE,
+      `${DIAGNOSTIC_RESULTS_COLLECTION}/${item.id}`,
+    );
+  }
 }

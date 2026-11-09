@@ -153,29 +153,29 @@ export const setManagedAccountActiveStatus = onCall(
 
         await db.collection("users").doc(authUser.uid).update(updatePayload);
       } catch (err: unknown) {
-  console.error("Firestore profile status update failed:", err);
+        console.error("Firestore profile status update failed:", err);
 
-  try {
-    await auth.updateUser(authUser.uid, {
-      disabled: authUser.disabled,
-    });
-  } catch (rollbackError: unknown) {
-    console.error(
-      "CRITICAL: Auth rollback failed after Firestore update failure.",
-      rollbackError,
-    );
+        try {
+          await auth.updateUser(authUser.uid, {
+            disabled: authUser.disabled,
+          });
+        } catch (rollbackError: unknown) {
+          console.error(
+            "CRITICAL: Auth rollback failed after Firestore update failure.",
+            rollbackError,
+          );
 
-    throw new HttpsError(
-      "internal",
-      "CRITICAL_ACCOUNT_STATE_INCONSISTENCY: Account status could not be restored. Administrator investigation required.",
-    );
-  }
+          throw new HttpsError(
+            "internal",
+            "CRITICAL_ACCOUNT_STATE_INCONSISTENCY: Account status could not be restored. Administrator investigation required.",
+          );
+        }
 
-  throw new HttpsError(
-    "internal",
-    "INTERNAL_OPERATION_FAILED: Firestore update failed. Authentication status restored.",
-  );
-}
+        throw new HttpsError(
+          "internal",
+          "INTERNAL_OPERATION_FAILED: Firestore update failed. Authentication status restored.",
+        );
+      }
 
       // Audit log (Failure returns warning, does NOT repeat account operation)
       const actionName = targetActive ? "ACCOUNT_REACTIVATED" : "ACCOUNT_DISABLED";
@@ -304,7 +304,7 @@ export const setManagedAccountActiveStatus = onCall(
         }
 
         await db.collection("users").doc(authUser.uid).update(updatePayload);
-        } catch (err: unknown) {
+      } catch (err: unknown) {
         console.error("Firestore profile status update failed:", err);
 
         try {

@@ -1,4 +1,3 @@
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -40,8 +39,7 @@ vi.mock("../../functions/src/adminAuthHelper.js", () => ({
   resolveAndVerifyDoctorAccount: vi.fn(),
 }));
 
-import { setManagedAccountActiveStatus } from
-  "../../functions/src/setManagedAccountActiveStatus";
+import { setManagedAccountActiveStatus } from "../../functions/src/setManagedAccountActiveStatus";
 
 type AccountType = "CONSUMER" | "PARAMEDIC_NURSE";
 
@@ -110,9 +108,7 @@ describe("Account status rollback security", () => {
           empty: false,
         });
 
-        mocks.updateProfile.mockRejectedValue(
-          new Error("Synthetic Firestore failure"),
-        );
+        mocks.updateProfile.mockRejectedValue(new Error("Synthetic Firestore failure"));
       });
 
       it("reports successful rollback accurately", async () => {
@@ -125,24 +121,14 @@ describe("Account status rollback security", () => {
           } as any),
         ).rejects.toMatchObject({
           code: "internal",
-          message: expect.stringContaining(
-            "Authentication status restored",
-          ),
+          message: expect.stringContaining("Authentication status restored"),
         });
 
         expect(mocks.updateUser).toHaveBeenCalledTimes(2);
 
-        expect(mocks.updateUser).toHaveBeenNthCalledWith(
-          1,
-          testCase.uid,
-          { disabled: true },
-        );
+        expect(mocks.updateUser).toHaveBeenNthCalledWith(1, testCase.uid, { disabled: true });
 
-        expect(mocks.updateUser).toHaveBeenNthCalledWith(
-          2,
-          testCase.uid,
-          { disabled: false },
-        );
+        expect(mocks.updateUser).toHaveBeenNthCalledWith(2, testCase.uid, { disabled: false });
 
         expect(mocks.updateProfile).toHaveBeenCalledTimes(1);
         expect(mocks.recordAdminAuditLog).not.toHaveBeenCalled();
@@ -151,9 +137,7 @@ describe("Account status rollback security", () => {
       it("reports critical inconsistency when rollback fails", async () => {
         mocks.updateUser
           .mockResolvedValueOnce({})
-          .mockRejectedValueOnce(
-            new Error("Synthetic Auth rollback failure"),
-          );
+          .mockRejectedValueOnce(new Error("Synthetic Auth rollback failure"));
 
         await expect(
           setManagedAccountActiveStatus.run({
@@ -162,18 +146,12 @@ describe("Account status rollback security", () => {
           } as any),
         ).rejects.toMatchObject({
           code: "internal",
-          message: expect.stringContaining(
-            "CRITICAL_ACCOUNT_STATE_INCONSISTENCY",
-          ),
+          message: expect.stringContaining("CRITICAL_ACCOUNT_STATE_INCONSISTENCY"),
         });
 
         expect(mocks.updateUser).toHaveBeenCalledTimes(2);
 
-        expect(mocks.updateUser).toHaveBeenNthCalledWith(
-          2,
-          testCase.uid,
-          { disabled: false },
-        );
+        expect(mocks.updateUser).toHaveBeenNthCalledWith(2, testCase.uid, { disabled: false });
 
         expect(mocks.updateProfile).toHaveBeenCalledTimes(1);
         expect(mocks.recordAdminAuditLog).not.toHaveBeenCalled();

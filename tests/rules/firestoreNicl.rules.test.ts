@@ -32,7 +32,15 @@ describe("NICL compact rules structural regression", () => {
     expect(common).toContain("d.submittedAt == request.time");
     expect(common).toContain("niclText(d.createdAt,64)");
     const required = section("niclRequiredKeys", "niclFacilityKeys");
-    for (const field of ["submittedAt", "patientName", "mrn", "clinicalIndication", "diagnosis", "createdAt"]) expect(required).toContain(`'${field}'`);
+    for (const field of [
+      "submittedAt",
+      "patientName",
+      "mrn",
+      "clinicalIndication",
+      "diagnosis",
+      "createdAt",
+    ])
+      expect(required).toContain(`'${field}'`);
   });
   it("limits facility creation to its identity and pending status", () => {
     const facility = section("niclFacilityCreate", "niclAdminCreate");
@@ -41,7 +49,8 @@ describe("NICL compact rules structural regression", () => {
     expect(facility).toContain("d.facilityId == userFacilityId()");
     expect(facility).toContain("isTrustedFacilityMetadata(d)");
     const keys = section("niclFacilityKeys", "niclAdminKeys");
-    for (const field of ["scheduledDate", "updatedAt", "rejectReason", "rejectedBy", "resultFile"]) expect(keys).not.toContain(`'${field}'`);
+    for (const field of ["scheduledDate", "updatedAt", "rejectReason", "rejectedBy", "resultFile"])
+      expect(keys).not.toContain(`'${field}'`);
   });
   it("limits admin statuses and validates scheduled date", () => {
     const admin = section("niclAdminCreate", "canCreateNiclRecord");
@@ -58,6 +67,11 @@ describe("NICL compact rules structural regression", () => {
     expect(create).toContain("niclAdminCreate(d)");
   });
   it("preserves unrelated modules and scheduling helper", () => {
-    for (const symbol of ["function canParamedicNurseUpdateRecord", "match /outsource_appointments/{docId}", "match /rheumatology_appointments/{docId}"]) expect(rules).toContain(symbol);
+    for (const symbol of [
+      "function canParamedicNurseUpdateRecord",
+      "match /outsource_appointments/{docId}",
+      "match /rheumatology_appointments/{docId}",
+    ])
+      expect(rules).toContain(symbol);
   });
 });

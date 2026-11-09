@@ -63,7 +63,7 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   let lastDoneLabel = "Date Last Echo Done:";
 
   const procType = (req.procedureType || "").toLowerCase();
-  const isRheumatology = procType.includes("rheumatology") || procType.includes("rheum");
+  const isRheumatology = false;
   if (procType.includes("stress test")) {
     titleText = "EXERCISE STRESS TEST";
     lastDoneLabel = "Date Last Stress Test Done:";
@@ -95,9 +95,6 @@ export function generateEchoFormHTML(req: AppointmentRecord): string {
   ) {
     titleText = "OUTSOURCE RADIOLOGY & DIAGNOSTIC REPORT";
     lastDoneLabel = "Date Last Report Uploaded:";
-  } else if (procType.includes("rheumatology") || procType.includes("rheum")) {
-    titleText = "RHEUMATOLOGY CLINICAL CONSULTATION";
-    lastDoneLabel = "Date Last Consultation Done:";
   }
 
   return `

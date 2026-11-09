@@ -265,7 +265,7 @@ describe("HospitalHub Version 48 â€” NICL Creation Security Verification Su
         status: "Scheduled",
         scheduledDate: "invalid-date",
       };
-      
+
       await assertFails(adminDb.collection(name).doc(docId).set(payload));
     });
 

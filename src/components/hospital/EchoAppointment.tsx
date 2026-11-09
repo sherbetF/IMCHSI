@@ -39,6 +39,7 @@ import {
 } from "@/utils/dateUtils";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
 
 export type AppointmentRequest = AppointmentRecord;
 
@@ -171,7 +172,8 @@ export function EchoAppointment() {
     } else if (/[^a-zA-Z0-9]/.test(formData.mrn.trim())) {
       errors["mrn"] = "Identification No. can only contain letters and numbers (no symbols)";
     }
-    if (!formData.contactNumber.trim()) errors["contactNumber"] = "Contact phone number is required";
+    if (!formData.contactNumber.trim())
+      errors["contactNumber"] = "Contact phone number is required";
     if (!formData.referringDoctor.trim())
       errors["referringDoctor"] = "Referring doctor name is required";
     if (!formData.department.trim()) errors["department"] = "Department is required";
@@ -193,7 +195,7 @@ export function EchoAppointment() {
     const activeFacilityId = facilityId || (selectedFacility ? selectedFacility.facilityId : "");
 
     const newReq: AppointmentRequest = {
-      id: `ECHO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: generateAppointmentId("ECHO", selectedFacility.name, activeFacilityId),
       facilityId: activeFacilityId,
       facilityName: selectedFacility.name,
       facilityCategory: selectedFacility.category,
@@ -231,16 +233,16 @@ export function EchoAppointment() {
         );
         const latestPrev = docs[0];
         if (latestPrev) {
-        setDuplicateOriginalStatus(latestPrev.status || "Pending Confirmation");
-        setDuplicateOriginalId(latestPrev.id || "");
-        setDuplicateOriginalDate(latestPrev.scheduledDate || "");
-        setDuplicateOriginalReason(latestPrev.rejectReason || "");
+          setDuplicateOriginalStatus(latestPrev.status || "Pending Confirmation");
+          setDuplicateOriginalId(latestPrev.id || "");
+          setDuplicateOriginalDate(latestPrev.scheduledDate || "");
+          setDuplicateOriginalReason(latestPrev.rejectReason || "");
 
-        setPendingReq(newReq);
-        setDuplicateJustification("");
-        setDuplicateError("");
-        setShowDuplicateModal(true);
-        return;
+          setPendingReq(newReq);
+          setDuplicateJustification("");
+          setDuplicateError("");
+          setShowDuplicateModal(true);
+          return;
         }
       }
     } catch (err) {
@@ -356,6 +358,7 @@ export function EchoAppointment() {
 
   const filteredRequests = requests.filter((r) => {
     const matchesSearch =
+      (r.displayId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.mrn.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -423,7 +426,16 @@ export function EchoAppointment() {
                 </h3>
                 <p className="mt-0.5 text-xs text-foreground">
                   Your request reference number is{" "}
-                  <span className="font-mono font-bold text-heading">{submittedRef.id}</span>.
+                  <span className="font-mono font-bold text-heading">
+                    {submittedRef.displayId ||
+                      formatAppointmentCode(
+                        submittedRef.id,
+                        "ECHO",
+                        selectedFacility.name,
+                        activeFacilityId,
+                      )}
+                  </span>
+                  .
                 </p>
               </div>
             </div>
@@ -601,7 +613,9 @@ export function EchoAppointment() {
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                   />
                   {formErrors["clinicalIndication"] && (
-                    <p className="mt-1 text-xs text-destructive">{formErrors["clinicalIndication"]}</p>
+                    <p className="mt-1 text-xs text-destructive">
+                      {formErrors["clinicalIndication"]}
+                    </p>
                   )}
                 </div>
 
@@ -723,7 +737,10 @@ export function EchoAppointment() {
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs">
                     {/* Left: Ref ID, Patient Name, MRN, Urgency, Facility (if Admin) */}
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <span className="font-mono text-xs font-bold text-primary">{r.id}</span>
+                      <span className="font-mono text-xs font-bold text-primary">
+                        {r.displayId ||
+                          formatAppointmentCode(r.id, "ECHO", r.facilityName, r.facilityId)}
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-bold text-heading">{r.patientName}</span>
                         <span className="text-xs font-mono text-muted-foreground">({r.mrn})</span>
@@ -737,35 +754,30 @@ export function EchoAppointment() {
                       >
                         {r.urgency}
                       </span>
-                      {canManageScheduling && (
-                        <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                          {r.facilityName}
-                        </span>
-                      )}
                     </div>
 
                     {/* Right: Status, Scheduled Date, Action, Toggle */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          r.status === "Scheduled"
-                            ? "bg-primary/20 text-primary border border-primary/30"
-                            : r.status === "Confirmed"
-                              ? "bg-success-soft text-success"
-                              : r.status === "Pending Confirmation"
-                                ? "bg-warning-soft text-warning"
-                                : r.status === "Rejected"
-                                  ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                  : "bg-accent text-accent-foreground"
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-
-                      {r.scheduledDate && r.scheduledDate !== "----------" && (
-                        <span className="hidden sm:flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
+                      {/* Status / Scheduled Date / Pending Icon */}
+                      {r.status === "Confirmed" ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-success-soft text-success">
+                          Confirmed
+                        </span>
+                      ) : r.status === "Rejected" ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
+                          Rejected
+                        </span>
+                      ) : r.scheduledDate && r.scheduledDate !== "----------" ? (
+                        <span className="flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
                           <CalendarCheck className="h-3 w-3" />
                           <span>{formatDisplayScheduledDate(r.scheduledDate)}</span>
+                        </span>
+                      ) : (
+                        <span
+                          title="Appointment date is pending"
+                          className="inline-flex items-center justify-center rounded-full bg-amber-500/10 p-1 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
                         </span>
                       )}
 
@@ -811,11 +823,19 @@ export function EchoAppointment() {
                                   : "09:00 AM",
                               );
                             }}
-                            className="rounded-lg border border-primary/40 bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/40 bg-primary text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                            title={
+                              r.scheduledDate && r.scheduledDate !== "----------"
+                                ? "Reschedule Appointment"
+                                : "Schedule Appointment"
+                            }
+                            aria-label={
+                              r.scheduledDate && r.scheduledDate !== "----------"
+                                ? "Reschedule Appointment"
+                                : "Schedule Appointment"
+                            }
                           >
-                            {r.scheduledDate && r.scheduledDate !== "----------"
-                              ? "Reschedule"
-                              : "Schedule"}
+                            <CalendarIcon className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       )}
@@ -1113,7 +1133,14 @@ export function EchoAppointment() {
                     ) : (
                       <>
                         <span className="opacity-80">Previous Request ID:</span>{" "}
-                        <span className="font-bold">{duplicateOriginalId}</span>
+                        <span className="font-bold">
+                          {formatAppointmentCode(
+                            duplicateOriginalId,
+                            "ECHO",
+                            selectedFacility.name,
+                            activeFacilityId,
+                          )}
+                        </span>
                       </>
                     )}
                   </div>

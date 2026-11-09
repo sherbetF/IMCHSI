@@ -1,10 +1,5 @@
-
 import { describe, it, beforeAll, afterAll, beforeEach } from "vitest";
-import {
-  RulesTestEnvironment,
-  assertFails,
-  assertSucceeds,
-} from "@firebase/rules-unit-testing";
+import { RulesTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 
 import {
   createRealRulesTestEnvironment,
@@ -38,12 +33,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
-        .doc(SYNTHETIC_IDENTITIES.FACILITY_A_INACTIVE.uid)
-        .update({
-          active: true,
-          updatedAt: new Date().toISOString(),
-        })
+      db.collection("users").doc(SYNTHETIC_IDENTITIES.FACILITY_A_INACTIVE.uid).update({
+        active: true,
+        updatedAt: new Date().toISOString(),
+      }),
     );
   });
 
@@ -53,12 +46,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
-        .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({
-          active: false,
-          updatedAt: new Date().toISOString(),
-        })
+      db.collection("users").doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid).update({
+        active: false,
+        updatedAt: new Date().toISOString(),
+      }),
     );
   });
 
@@ -68,9 +59,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
+      db
+        .collection("users")
         .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({ active: false })
+        .update({ active: false }),
     );
   });
 
@@ -80,9 +72,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
+      db
+        .collection("users")
         .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({ active: false })
+        .update({ active: false }),
     );
   });
 
@@ -92,12 +85,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertSucceeds(
-      db.collection("users")
-        .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({
-          firstLoginAcknowledgedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
+      db.collection("users").doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid).update({
+        firstLoginAcknowledgedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
     );
   });
 
@@ -107,9 +98,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
+      db
+        .collection("users")
         .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({ role: "admin" })
+        .update({ role: "admin" }),
     );
   });
 
@@ -119,9 +111,10 @@ describe("Account Status Firestore Security", () => {
       .firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertFails(
-      db.collection("users")
+      db
+        .collection("users")
         .doc(SYNTHETIC_IDENTITIES.FACILITY_A_ACTIVE.uid)
-        .update({ facilityId: "TEST_FACILITY_B" })
+        .update({ facilityId: "TEST_FACILITY_B" }),
     );
   });
 });

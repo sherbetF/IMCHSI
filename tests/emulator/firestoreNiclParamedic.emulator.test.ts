@@ -134,25 +134,31 @@ describe("Paramedic NICL Access & Authorization Security Rules Suite", () => {
     const paramedicDb = paramedicContext.firestore({ databaseId: NAMED_DATABASE_ID } as any);
 
     await assertSucceeds(
-      paramedicDb.collection("holter_appointments").doc("doc_holter_result").update({
-        status: "Completed - Result Ready",
-        resultFile: {
-          fileName: "Holter_Result.pdf",
-          uploadedAt: new Date().toISOString(),
-          summaryNotes: "Normal sinus rhythm throughout",
-        },
-      }),
+      paramedicDb
+        .collection("holter_appointments")
+        .doc("doc_holter_result")
+        .update({
+          status: "Completed - Result Ready",
+          resultFile: {
+            fileName: "Holter_Result.pdf",
+            uploadedAt: new Date().toISOString(),
+            summaryNotes: "Normal sinus rhythm throughout",
+          },
+        }),
     );
 
     await assertSucceeds(
-      paramedicDb.collection("stress_test_appointments").doc("doc_stress_result").update({
-        status: "Completed - Result Ready",
-        resultFile: {
-          fileName: "Stress_Test_Result.pdf",
-          uploadedAt: new Date().toISOString(),
-          summaryNotes: "Target heart rate achieved, no ischemia",
-        },
-      }),
+      paramedicDb
+        .collection("stress_test_appointments")
+        .doc("doc_stress_result")
+        .update({
+          status: "Completed - Result Ready",
+          resultFile: {
+            fileName: "Stress_Test_Result.pdf",
+            uploadedAt: new Date().toISOString(),
+            summaryNotes: "Target heart rate achieved, no ischemia",
+          },
+        }),
     );
   });
 
@@ -164,15 +170,17 @@ describe("Paramedic NICL Access & Authorization Security Rules Suite", () => {
         facilityId: "TEST_FACILITY_A",
         patientName: "Synthetic Patient",
         mrn: "TEST-0001",
-        status: "Pending Confirmation"
+        status: "Pending Confirmation",
       });
     });
     const context = testEnv.authenticatedContext(SYNTHETIC_IDENTITIES.PARAMEDIC_ACTIVE.uid);
     const db = context.firestore({ databaseId: NAMED_DATABASE_ID } as any);
-    await assertFails(db.collection("echo_appointments").doc("invalid_schedule_test").update({
-      status: "INVALID_STATUS",
-      scheduledDate: "NOT_A_REAL_DATE"
-    }));
+    await assertFails(
+      db.collection("echo_appointments").doc("invalid_schedule_test").update({
+        status: "INVALID_STATUS",
+        scheduledDate: "NOT_A_REAL_DATE",
+      }),
+    );
   });
 
   // --------------------------------------------------------------------------

@@ -746,9 +746,7 @@ export function FacilityAccountManager() {
 
         {/* Doctor Accounts */}
         <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-primary/40">
-          <p className="text-xs font-bold text-primary uppercase tracking-wider">
-            Doctor Accounts
-          </p>
+          <p className="text-xs font-bold text-primary uppercase tracking-wider">Doctor Accounts</p>
           <p className="font-mono text-2xl font-extrabold text-primary mt-1.5">
             {data?.summary ? (
               `${data.summary.activeDoctors ?? 0} / ${data.summary.totalDoctors ?? data.doctors?.length ?? 0}`
@@ -761,7 +759,9 @@ export function FacilityAccountManager() {
 
         {/* Inactive */}
         <div className="rounded-xl border border-border bg-background p-4 shadow-xs transition-colors hover:border-amber-500/40">
-          <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Inactive</p>
+          <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+            Inactive
+          </p>
           <p className="font-mono text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1.5">
             {data?.summary ? (
               data.summary.inactiveConsumers + (data.summary.inactiveDoctors ?? 0)
@@ -859,7 +859,9 @@ export function FacilityAccountManager() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-bold text-heading">Facility / Consumer Accounts</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-heading">
+                    Facility / Consumer Accounts
+                  </h2>
                   {isLoading && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 rounded-md animate-pulse">
                       <RefreshCw className="w-2.5 h-2.5 animate-spin" />
@@ -1230,9 +1232,7 @@ export function FacilityAccountManager() {
                             {docItem.displayName.replace(/^Dr\.?\s*/i, "").charAt(0) || "D"}
                           </div>
                           <div>
-                            <div className="font-bold text-heading">
-                              {docItem.displayName}
-                            </div>
+                            <div className="font-bold text-heading">{docItem.displayName}</div>
                             <div className="text-[11px] text-muted-foreground sm:hidden font-mono mt-0.5">
                               {docItem.doctorId}
                             </div>

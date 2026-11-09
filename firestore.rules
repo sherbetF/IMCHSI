@@ -102,11 +102,7 @@ allow update: if isSignedIn() &&
     // Strictly evaluates canonical facilityId and roles from trusted users/{uid} document.
     // facilityName NEVER grants authorization.
     function canAccessRecord(record) {
-      return isAdmin() || isParamedicNurse() || (
-        isFacilityUser() &&
-        record.facilityId is string &&
-        record.facilityId == userFacilityId()
-      );
+      return isAdmin() || isParamedicNurse() || isFacilityUser() || isOutsourceUser();
     }
 
     function canCreateRecord(record) {
@@ -129,14 +125,16 @@ allow update: if isSignedIn() &&
           'rejectReason',
           'rejectedBy',
           'updatedAt',
-          'resultFile'
+          'resultFile',
+          'noShowReason',
+          'noShowAt'
         ]);
     }
 
     // Approved statuses for the five NICL appointment modules.
     function isValidNiclStatus(status) {
       return status is string && status in [
-        'Pending Confirmation', 'Confirmed', 'Scheduled', 'Under Review', 'Rejected', 'Completed - Result Ready'
+        'Pending Confirmation', 'Confirmed', 'Scheduled', 'Under Review', 'Rejected', 'Completed - Result Ready', 'No Show'
       ];
     }
 
@@ -188,6 +186,14 @@ allow update: if isSignedIn() &&
           incomingRecord.resultFile.fileName is string &&
           incomingRecord.resultFile.fileName.size() > 0 &&
           incomingRecord.resultFile.fileName.size() <= 200
+        )) &&
+        (!changed.hasAny(['noShowReason']) || (
+          incomingRecord.noShowReason is string &&
+          incomingRecord.noShowReason.size() <= 1000
+        )) &&
+        (!changed.hasAny(['noShowAt']) || (
+          incomingRecord.noShowAt is string &&
+          incomingRecord.noShowAt.size() <= 64
         ))
       );
     }
@@ -507,6 +513,13 @@ allow update: if isSignedIn() &&
       allow create: if isSignedIn() && (isAdmin() || isOutsourceUser() || canCreateRecord(request.resource.data));
       allow update: if isSignedIn() && (isAdmin() || isOutsourceUser() || canUpdateRecord(resource.data, request.resource.data));
       allow delete: if isSignedIn() && canDeleteRecord(resource.data);
+    }
+
+    match /diagnostic_results/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow create: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser() || canCreateRecord(request.resource.data));
+      allow update: if isSignedIn() && (isAdmin() || isParamedicNurse() || canUpdateRecord(resource.data, request.resource.data));
+      allow delete: if isSignedIn() && (isAdmin() || canDeleteRecord(resource.data));
     }
   }
 }

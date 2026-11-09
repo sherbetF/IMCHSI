@@ -112,7 +112,8 @@ export function FacilitySelectModal() {
       const group = FACILITIES_DATA[0];
       if (group && group.items[0]) {
         setSelectedCategory(group.category);
-        const firstItem = group.items[0]; setSelectedName(firstItem?.facilityName ?? '');
+        const firstItem = group.items[0];
+        setSelectedName(firstItem?.facilityName ?? "");
       }
     }
   }, [selectedFacility, modalStep, isModalOpen]);
@@ -141,7 +142,8 @@ export function FacilitySelectModal() {
 
   useEffect(() => {
     if (filteredFacilities.length > 0 && !filteredFacilities.includes(selectedName)) {
-      const firstFacility = filteredFacilities[0]; if (firstFacility !== undefined) setSelectedName(firstFacility);
+      const firstFacility = filteredFacilities[0];
+      if (firstFacility !== undefined) setSelectedName(firstFacility);
     }
   }, [searchQuery, selectedCategory, filteredFacilities, selectedName]);
 
@@ -152,7 +154,8 @@ export function FacilitySelectModal() {
     setSearchQuery("");
     const group = FACILITIES_DATA.find((g) => g.category === category);
     if (group && group.items.length > 0) {
-      const firstItem = group.items[0]; setSelectedName(firstItem?.facilityName ?? '');
+      const firstItem = group.items[0];
+      setSelectedName(firstItem?.facilityName ?? "");
     } else {
       setSelectedName("");
     }
@@ -212,7 +215,7 @@ export function FacilitySelectModal() {
       }
 
       const data = userDocSnap.data();
-      if (data['active'] === false) {
+      if (data["active"] === false) {
         await auth.signOut();
         setFacilityError(
           "This facility account is currently disabled. Please contact the administrator.",
@@ -221,7 +224,7 @@ export function FacilitySelectModal() {
         return;
       }
 
-      if (data['role'] !== "facility" || data['facilityId'] !== facId) {
+      if (data["role"] !== "facility" || data["facilityId"] !== facId) {
         await auth.signOut();
         setFacilityPassword("");
         setFacilityError("Invalid facility or password.");
@@ -230,7 +233,7 @@ export function FacilitySelectModal() {
       }
 
       // If facility user has a pending password setup requirement, close login modal and let the Gate take over
-      if (data['mustChangePassword'] === true) {
+      if (data["mustChangePassword"] === true) {
         setIsFacilityLoginOpen(false);
         setFacilityPassword("");
         closeModal();
@@ -238,7 +241,7 @@ export function FacilitySelectModal() {
       }
 
       // Check if this is the first login recorded for a non-hospital facility
-      if (!data['firstLoginAcknowledgedAt'] && selectedCategory !== "Hospital") {
+      if (!data["firstLoginAcknowledgedAt"] && selectedCategory !== "Hospital") {
         setFirstLoginWelcomeUser({
           uid: user.uid,
           facilityId: facId,
@@ -325,8 +328,10 @@ export function FacilitySelectModal() {
 
       const data = userDocSnap.data();
       if (
-        data['active'] !== true ||
-        (data['role'] !== "admin" && data['role'] !== "paramedic_nurse" && data['role'] !== "doctor")
+        data["active"] !== true ||
+        (data["role"] !== "admin" &&
+          data["role"] !== "paramedic_nurse" &&
+          data["role"] !== "doctor")
       ) {
         await auth.signOut();
         setAdminPassword("");
@@ -337,7 +342,7 @@ export function FacilitySelectModal() {
         return;
       }
 
-      if (staffType === "doctor" && data['role'] !== "doctor") {
+      if (staffType === "doctor" && data["role"] !== "doctor") {
         await auth.signOut();
         setAdminPassword("");
         setAuthError("Authenticated account does not have Doctor role.");
@@ -345,23 +350,23 @@ export function FacilitySelectModal() {
         return;
       }
 
-      if (data['role'] === "admin") {
+      if (data["role"] === "admin") {
         setSelectedFacility({
           facilityId: "admin",
           category: "Hospital Sultan Ismail Admin",
           name: "Hospital Sultan Ismail (Admin Mode)",
         });
-      } else if (data['role'] === "paramedic_nurse") {
+      } else if (data["role"] === "paramedic_nurse") {
         setSelectedFacility({
           facilityId: "paramedic_nurse",
           category: "Hospital",
-          name: data['displayName'] || "Paramedic",
+          name: data["displayName"] || "Paramedic",
         });
       } else {
         setSelectedFacility({
-          facilityId: data['doctorId'],
+          facilityId: data["doctorId"],
           category: "Hospital",
-          name: data['displayName'] || "Rheumatology Doctor",
+          name: data["displayName"] || "Rheumatology Doctor",
         });
       }
 
@@ -370,11 +375,11 @@ export function FacilitySelectModal() {
       setDoctorIdInput("");
       setAuthError("");
       toast.success(
-        data['role'] === "admin"
+        data["role"] === "admin"
           ? "Administrator access granted!"
-          : data['role'] === "paramedic_nurse"
+          : data["role"] === "paramedic_nurse"
             ? "Staff access granted!"
-            : `Welcome, ${data['displayName'] || "Doctor"}!`,
+            : `Welcome, ${data["displayName"] || "Doctor"}!`,
       );
       closeModal();
     } catch (err: unknown) {

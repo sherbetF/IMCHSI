@@ -184,8 +184,10 @@ export function RheumatologyAttachmentsManager({
 
     setUploading(true);
     try {
-      await uploadRheumatologyAttachment(referralId, file);
-      toast.success(`Document "${file.name}" successfully attached.`);
+      await uploadRheumatologyAttachment(referralId, file, (stage, msg) => {
+        toast.info(`[${stage.toUpperCase()}] ${msg}`, { id: "rheumatology-upload-progress" });
+      });
+      toast.success(`Document "${file.name}" successfully compressed & attached.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: unknown) {
       const e = err as Error;

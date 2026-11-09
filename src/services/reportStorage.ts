@@ -1,5 +1,8 @@
-import { ref, uploadBytes, getBlob, deleteObject } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import {
+  processFileThroughMandatoryPipeline,
+  PipelineProgressCallback,
+  ProcessedPipelineResult,
+} from "@/services/centralUploadPipeline";
 
 export interface ResultFileMetadata {
   storagePath: string;
@@ -8,8 +11,13 @@ export interface ResultFileMetadata {
   fileSize: number;
   uploadedAt: string;
   summaryNotes?: string;
-  // Legacy backward-compatibility only during migration
   dataUrl?: string;
+  originalSizeBytes?: number;
+  compressedSizeBytes?: number;
+  originalSizeFormatted?: string;
+  compressedSizeFormatted?: string;
+  compressionSavingsPercent?: number;
+  sha256Checksum?: string;
 }
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -20,13 +28,14 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/webp",
+  "application/gzip",
 ]);
 
 const CANONICAL_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 /**
- * Validates and uploads a diagnostic report file to Firebase Storage.
- * Requires a valid, canonical facilityId and reportId. Rejects missing, empty, or path-manipulated IDs.
+ * Validates, compresses losslessly through Central Upload Pipeline, and uploads diagnostic report file to Firebase Storage.
+ * NO FILE IS UPLOADED UNPROCESSED OR WITHOUT INTEGRITY VERIFICATION.
  */
 export async function uploadReportFile(
   file: File,
@@ -34,6 +43,7 @@ export async function uploadReportFile(
   reportId: string,
   isOutsource: boolean = false,
   summaryNotes?: string,
+  onProgress?: PipelineProgressCallback,
 ): Promise<ResultFileMetadata> {
   if (!file) {
     throw new Error("No file provided for upload.");
@@ -65,14 +75,17 @@ export async function uploadReportFile(
     );
   }
 
-  const mimeType = file.type || "application/pdf";
-  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-    throw new Error(
-      "Invalid file type. Only PDF documents and standard images (PNG, JPEG, WebP) are permitted.",
-    );
-  }
+  // MANDATORY CENTRAL COMPRESSION & INTEGRITY PIPELINE
+  const pipelineResult: ProcessedPipelineResult = await processFileThroughMandatoryPipeline(
+    file,
+    onProgress,
+  );
 
-  // Sanitize fileName to prevent directory traversal or malformed object paths
+  const uploadContentType = pipelineResult.isGzipCompressed
+    ? "application/gzip"
+    : pipelineResult.fileType || file.type || "application/pdf";
+
+  // Sanitize fileName
   const sanitizedFileName = file.name
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .replace(/^\.+/, "")
@@ -83,23 +96,44 @@ export async function uploadReportFile(
 
   const storageRef = ref(storage, storagePath);
 
-  // Upload file bytes directly using modular Firebase Storage SDK
-  await uploadBytes(storageRef, file, {
-    contentType: mimeType,
+  if (onProgress) {
+    onProgress("uploading", "Uploading optimized file to Firebase Storage...", 85);
+  }
+
+  // Upload compressed payload to Firebase Storage
+  await uploadBytes(storageRef, pipelineResult.compressedFileOrBlob, {
+    contentType: uploadContentType,
     customMetadata: {
       facilityId: validFacilityId,
       reportId: validReportId,
       originalFileName: file.name,
+      originalSizeBytes: String(pipelineResult.originalSizeBytes),
+      compressedSizeBytes: String(pipelineResult.compressedSizeBytes),
+      compressionSavingsPercent: String(pipelineResult.compressionSavingsPercent),
+      sha256Checksum: pipelineResult.sha256Checksum,
     },
   });
+
+  if (onProgress) {
+    onProgress("completed", "Upload completed successfully.", 100);
+  }
 
   return {
     storagePath,
     fileName: file.name,
-    contentType: mimeType,
-    fileSize: file.size,
+    contentType: uploadContentType,
+    fileSize: pipelineResult.compressedSizeBytes,
     uploadedAt: new Date().toISOString(),
-    summaryNotes: summaryNotes || `Report attached (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
+    summaryNotes:
+      summaryNotes ||
+      `Report attached (${pipelineResult.compressedSizeFormatted}, -${pipelineResult.compressionSavingsPercent}% saved)`,
+    dataUrl: pipelineResult.dataUrl,
+    originalSizeBytes: pipelineResult.originalSizeBytes,
+    compressedSizeBytes: pipelineResult.compressedSizeBytes,
+    originalSizeFormatted: pipelineResult.originalSizeFormatted,
+    compressedSizeFormatted: pipelineResult.compressedSizeFormatted,
+    compressionSavingsPercent: pipelineResult.compressionSavingsPercent,
+    sha256Checksum: pipelineResult.sha256Checksum,
   };
 }
 

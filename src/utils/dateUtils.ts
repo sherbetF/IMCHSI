@@ -172,11 +172,15 @@ export function combineDateAndTime(dateString: string, timeString: string): Date
   if (trimmedDate.includes("-")) {
     const parts = trimmedDate.split("-").map(Number);
     if (parts.length !== 3 || parts.some(isNaN)) return null;
-    year = parts[0]!; month = parts[1]!; day = parts[2]!;
+    year = parts[0]!;
+    month = parts[1]!;
+    day = parts[2]!;
   } else if (trimmedDate.includes("/")) {
     const parts = trimmedDate.split("/").map(Number);
     if (parts.length !== 3 || parts.some(isNaN)) return null;
-    day = parts[0]!; month = parts[1]!; year = parts[2]!;
+    day = parts[0]!;
+    month = parts[1]!;
+    year = parts[2]!;
   } else {
     return null;
   }
@@ -240,4 +244,39 @@ export function extractDateAndTimeString(val: unknown): { date: string; time: st
   const timeStr = `${pad(hours)}:${mins} ${ampm}`;
 
   return { date: dateStr, time: timeStr };
+}
+
+/**
+ * Checks whether a scheduledDate (e.g. "DD/MM/YYYY @ HH:mm AM/PM", "YYYY-MM-DD @ HH:mm AM/PM", or date-only)
+ * is strictly in the past compared to a reference date (default: now).
+ */
+export function isScheduledDatePassed(scheduledDate?: string, refDate: Date = new Date()): boolean {
+  if (!scheduledDate || scheduledDate === "----------") return false;
+  const trimmed = scheduledDate.trim();
+  if (!trimmed) return false;
+
+  if (trimmed.includes(" @ ")) {
+    const [datePart, ...timeParts] = trimmed.split(" @ ");
+    const timePart = timeParts.join(" @ ");
+    const parsed = combineDateAndTime(datePart, timePart);
+    if (parsed) {
+      return parsed.getTime() < refDate.getTime();
+    }
+  }
+
+  const timestamp = parseDateToTimestamp(trimmed);
+  if (timestamp > 0) {
+    const hasTime =
+      trimmed.includes(":") ||
+      trimmed.toUpperCase().includes("AM") ||
+      trimmed.toUpperCase().includes("PM");
+    if (!hasTime) {
+      const d = new Date(timestamp);
+      d.setHours(23, 59, 59, 999);
+      return d.getTime() < refDate.getTime();
+    }
+    return timestamp < refDate.getTime();
+  }
+
+  return false;
 }

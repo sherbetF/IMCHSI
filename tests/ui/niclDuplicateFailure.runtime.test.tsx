@@ -11,7 +11,10 @@ vi.mock("firebase/firestore", () => ({
   getDocs: vi.fn(() => Promise.reject(new Error("Simulated Firestore duplicate-check failure"))),
 }));
 vi.mock("@/services/firebaseAppointments", () => ({
-  subscribeToAppointments: vi.fn((_procedure, _facilityId, _canManage, callback) => { callback([], "connected"); return () => {}; }),
+  subscribeToAppointments: vi.fn((_procedure, _facilityId, _canManage, callback) => {
+    callback([], "connected");
+    return () => {};
+  }),
   createAppointment: vi.fn(),
   updateAppointment: vi.fn(),
 }));
@@ -50,16 +53,29 @@ describe("Echo duplicate-check failure protection", () => {
         ["e.g. +60 12-345 6789", "0123456789"],
         ["e.g. Dr. Tan Ai Ling", "Test Doctor"],
         ["e.g. Outpatient Department", "Test Department"],
-        ["Describe patient's symptoms, cardiovascular risks, murmur, prior ECG findings...", "Synthetic clinical indication"],
-        ["Provide primary working diagnosis (e.g. Hypertensive Heart Disease, Aortic Stenosis, Heart Failure).", "Synthetic diagnosis"],
+        [
+          "Describe patient's symptoms, cardiovascular risks, murmur, prior ECG findings...",
+          "Synthetic clinical indication",
+        ],
+        [
+          "Provide primary working diagnosis (e.g. Hypertensive Heart Disease, Aortic Stenosis, Heart Failure).",
+          "Synthetic diagnosis",
+        ],
       ];
-      for (const [placeholder, value] of fields) fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
+      for (const [placeholder, value] of fields)
+        fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
       fireEvent.click(screen.getByRole("button", { name: "Submit Appointment Request" }));
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Unable to check existing appointments. Please try again."));
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Unable to check existing appointments. Please try again.",
+        ),
+      );
       expect(getDocs).toHaveBeenCalledTimes(1);
       expect(screen.queryByText("Important Requirement Notice")).toBeNull();
       expect(createAppointment).not.toHaveBeenCalled();
-    } finally { errorSpy.mockRestore(); }
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 describe("NICL duplicate-check runtime setup", () => {

@@ -179,23 +179,21 @@ describe("Stage 7 — Firestore Security Rules Verification (Actual firestore.ru
     });
 
     it("restricts client profile updates to first-login metadata", () => {
-  const userProfileMatch = rulesContent.substring(
-    rulesContent.indexOf("match /users/{uid}"),
-    rulesContent.indexOf("match /facilities/{facilityId}"),
-  );
+      const userProfileMatch = rulesContent.substring(
+        rulesContent.indexOf("match /users/{uid}"),
+        rulesContent.indexOf("match /facilities/{facilityId}"),
+      );
 
-  expect(userProfileMatch).toContain(
-    "hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt'])",
-  );
+      expect(userProfileMatch).toContain(
+        "hasOnly(['firstLoginAcknowledgedAt', 'firstLoginAt', 'updatedAt'])",
+      );
 
-  expect(userProfileMatch).not.toContain(
-    "hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])",
-  );
+      expect(userProfileMatch).not.toContain(
+        "hasOnly(['active', 'updatedAt', 'disabledAt', 'reactivatedAt'])",
+      );
 
-  expect(userProfileMatch).toContain("request.auth.uid == uid");
-  expect(userProfileMatch).toContain(
-    "request.resource.data.active == resource.data.active",
-  );
-});
+      expect(userProfileMatch).toContain("request.auth.uid == uid");
+      expect(userProfileMatch).toContain("request.resource.data.active == resource.data.active");
+    });
   });
 });

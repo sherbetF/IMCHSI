@@ -199,7 +199,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setSelectedFacilityState({
               facilityId: userData["doctorId"],
               category: "Hospital",
-              name: userData["displayName"] || "Rheumatology Doctor",
+              name: userData["displayName"] || "Medical Doctor",
             });
             setIsOutsourceAuthenticated(false);
           } else if (userData["role"] === "outsource") {

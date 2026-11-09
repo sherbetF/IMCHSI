@@ -1,6 +1,14 @@
 import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, CalendarHeart, Activity, HeartPulse, Gauge, Wind } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarHeart,
+  Activity,
+  HeartPulse,
+  Gauge,
+  Wind,
+  Database,
+} from "lucide-react";
 import { SiteHeader } from "@/components/hospital/SiteHeader";
 import { SiteFooter } from "@/components/hospital/SiteFooter";
 import { useFacility } from "@/context/FacilityContext";
@@ -12,13 +20,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Internal hub for Hospital Sultan Ismail: Non-Invasive Cardiovascular & Respiratory Laboratory, Echocardiogram, Exercise Stress Test, 24 Hours Holter Monitoring, 24 Hours Blood Pressure Monitoring, and Lung Function Test / Spirometry.",
+          "Internal hub for Hospital Sultan Ismail: Non-Invasive Cardiovascular & Respiratory Laboratory, Echocardiogram, Exercise Stress Test, 24 Hours Holter Monitoring, 24 Hours Blood Pressure Monitoring, Lung Function Test / Spirometry, and Diagnostic Database.",
       },
       { property: "og:title", content: "Hospital Sultan Ismail — Internal Medicine Clinic" },
       {
         property: "og:description",
         content:
-          "Diagnostic laboratory appointment request modules (Echocardiogram, Exercise Stress Test, 24H Holter, 24H Blood Pressure Monitoring, Lung Function Test / Spirometry) and clinical tools.",
+          "Diagnostic laboratory appointment request modules (Echocardiogram, Exercise Stress Test, 24H Holter, 24H Blood Pressure Monitoring, Lung Function Test / Spirometry), Diagnostic Database, and clinical tools.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -67,6 +75,14 @@ const primaryModules = [
     title: "Lung Function Test / Spirometry",
     desc: "Request a Pre- & Post-Bronchodilator Spirometry appointment for pulmonary airflow and respiratory evaluation.",
     meta: "Appointment Booking",
+  },
+  {
+    to: "/database" as const,
+    icon: Database,
+    label: "Module 06",
+    title: "Database",
+    desc: "Central diagnostic repository storing all uploaded lab results, reports, and clinical documents across all modalities.",
+    meta: "Result Database & Archive",
   },
 ];
 

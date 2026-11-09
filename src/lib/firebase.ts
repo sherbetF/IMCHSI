@@ -40,9 +40,7 @@ const effectiveConfig = LOCAL_TEST
       appId: firebaseConfig.appId,
     };
 
-const app = !getApps().length
-  ? initializeApp(effectiveConfig)
-  : getApp();
+const app = !getApps().length ? initializeApp(effectiveConfig) : getApp();
 
 if (LOCAL_TEST && app.options.projectId !== "demo-hospitalhub-local") {
   throw new Error("Blocked: Firebase app is not using the local demo project.");
@@ -53,21 +51,13 @@ function getOrCreateFirestore() {
 
   if (LOCAL_TEST) {
     return databaseId
-      ? initializeFirestore(
-          app,
-          { experimentalForceLongPolling: true },
-          databaseId,
-        )
+      ? initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId)
       : initializeFirestore(app, { experimentalForceLongPolling: true });
   }
 
   try {
     if (databaseId) {
-      return initializeFirestore(
-        app,
-        { experimentalForceLongPolling: true },
-        databaseId,
-      );
+      return initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId);
     }
 
     return initializeFirestore(app, { experimentalForceLongPolling: true });
@@ -115,16 +105,16 @@ export interface FirestoreErrorInfo {
   operationType: OperationType;
   path: string | null;
   authInfo: {
-  userId?: string | null | undefined;
-  email?: string | null | undefined;
-  emailVerified?: boolean | null | undefined;
-  isAnonymous?: boolean | null | undefined;
-  tenantId?: string | null | undefined;
-  providerInfo?: {
-    providerId?: string | null | undefined;
+    userId?: string | null | undefined;
     email?: string | null | undefined;
-  }[];
-};
+    emailVerified?: boolean | null | undefined;
+    isAnonymous?: boolean | null | undefined;
+    tenantId?: string | null | undefined;
+    providerInfo?: {
+      providerId?: string | null | undefined;
+      email?: string | null | undefined;
+    }[];
+  };
 }
 
 export function handleFirestoreError(
