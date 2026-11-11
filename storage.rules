@@ -65,9 +65,9 @@ service firebase.storage {
         );
     }
 
-    // File validation: PDF and common medical image types up to 20MB
+    // File validation: PDF and common medical image types up to 100 MB
     function isValidReportFile() {
-      return request.resource.size <= 20 * 1024 * 1024 &&
+      return request.resource.size <= 100 * 1024 * 1024 &&
         (request.resource.contentType.matches('application/pdf') ||
          request.resource.contentType.matches('image/(png|jpeg|jpg|webp)'));
     }

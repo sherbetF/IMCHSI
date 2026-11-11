@@ -33,7 +33,7 @@ export interface ResultFileMetadata {
   sha256Checksum?: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MiB
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -102,7 +102,7 @@ export async function uploadReportFile(
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
     throw new Error(
-      `File size exceeds 20MB limit (file is ${(file.size / 1024 / 1024).toFixed(2)} MB).`,
+      `File size exceeds 100MB limit (file is ${(file.size / 1024 / 1024).toFixed(2)} MB).`,
     );
   }
 

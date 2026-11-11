@@ -187,25 +187,32 @@ export async function processFileThroughMandatoryPipeline(
   if (isPdf) {
     mimeType = "application/pdf";
     isGzipCompressed = false;
-    try {
-      const rawBuffer = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(rawBuffer, { ignoreEncryption: true });
-      pageCount = pdfDoc.getPageCount();
 
-      if (pageCount <= 0) {
-        throw new Error("PDF file contains no valid pages.");
-      }
-
-      const optimizedPdfBytes = await pdfDoc.save({ useObjectStreams: true });
-      processedBuffer = optimizedPdfBytes.buffer as ArrayBuffer;
-
-      // Never convert PDF into GZIP. If optimization didn't shrink, use raw buffer.
-      if (processedBuffer.byteLength >= rawBuffer.byteLength) {
-        processedBuffer = rawBuffer;
-      }
-    } catch (pdfErr) {
-      console.warn("pdf-lib structural optimization fallback to raw PDF buffer:", pdfErr);
+    // Avoid expensive PDF parsing and rewriting for large reports.
+    // Preserve the original binary PDF and verify its SHA-256 below.
+    if (file.size > 20 * 1024 * 1024) {
       processedBuffer = await file.arrayBuffer();
+    } else {
+      try {
+        const rawBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(rawBuffer, { ignoreEncryption: true });
+        pageCount = pdfDoc.getPageCount();
+
+        if (pageCount <= 0) {
+          throw new Error("PDF file contains no valid pages.");
+        }
+
+        const optimizedPdfBytes = await pdfDoc.save({ useObjectStreams: true });
+        processedBuffer = optimizedPdfBytes.buffer as ArrayBuffer;
+
+        // Never convert PDF into GZIP. If optimization didn't shrink, use raw buffer.
+        if (processedBuffer.byteLength >= rawBuffer.byteLength) {
+          processedBuffer = rawBuffer;
+        }
+      } catch (pdfErr) {
+        console.warn("pdf-lib structural optimization fallback to raw PDF buffer:", pdfErr);
+        processedBuffer = await file.arrayBuffer();
+      }
     }
   } else if (isImage) {
     isGzipCompressed = false;

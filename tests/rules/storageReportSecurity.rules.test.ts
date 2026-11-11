@@ -187,7 +187,7 @@ describe("Issue No. 2 — Medical Report Storage Security Rules Specification Ve
   // --------------------------------------------------------------------------
   describe("5. File Size & MIME Type Constraints", () => {
     it("enforces maximum 20MB file size boundary for diagnostic reports", () => {
-      expect(rulesContent).toContain("request.resource.size <= 20 * 1024 * 1024");
+      expect(rulesContent).toContain("request.resource.size <= 100 * 1024 * 1024");
     });
 
     it("restricts MIME types to PDF and standard images (PNG, JPEG, WebP)", () => {
