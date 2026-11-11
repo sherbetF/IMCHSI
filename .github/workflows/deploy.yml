@@ -45,7 +45,7 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: /
-          VITE_MAINTENANCE_MODE: "true"
+          VITE_MAINTENANCE_MODE: "false"
           VITE_FIRESTORE_DATABASE_ID: "(default)"
 
       - name: Setup Pages
