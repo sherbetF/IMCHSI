@@ -21,6 +21,13 @@ describe("Issue No. 2 — Medical Report Storage Security Rules Specification Ve
     expect(rulesContent).toContain("rules_version = '2';");
   });
 
+  it("queries authorization profiles exclusively from (default) database and never from named database", () => {
+    expect(rulesContent).toContain("/databases/(default)/documents/users/");
+    expect(rulesContent).not.toContain(
+      "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c",
+    );
+  });
+
   // --------------------------------------------------------------------------
   // 1. Helper Functions (isAssignedOutsourceProvider)
   // --------------------------------------------------------------------------
@@ -43,7 +50,7 @@ describe("Issue No. 2 — Medical Report Storage Security Rules Specification Ve
       );
     });
 
-    it("requires authentication and limits READ to Admin or owning Facility user", () => {
+    it("requires authentication and limits READ to Admin, Paramedic/Nurse, or owning Facility user", () => {
       const block = rulesContent.substring(
         rulesContent.indexOf("match /facilities/{facilityId}/reports/{reportId}/{fileName}"),
         rulesContent.indexOf(
@@ -51,8 +58,10 @@ describe("Issue No. 2 — Medical Report Storage Security Rules Specification Ve
         ),
       );
       expect(block).toContain(
-        "allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));",
+        "allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser(facilityId));",
       );
+      expect(block).toContain("(isAdmin() || isParamedicNurse())");
+      expect(block).not.toContain("isFacilityUser(facilityId)) &&\n        isValidReportFile();");
     });
 
     it("prohibits direct client-side overwriting on CREATE by requiring resource == null", () => {

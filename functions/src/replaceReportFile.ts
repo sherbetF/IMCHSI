@@ -1,7 +1,11 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import * as crypto from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { getAdminInstances, STORAGE_BUCKET_NAME } from "./adminAuthHelper.js";
+import {
+  getAdminInstances,
+  STORAGE_BUCKET_NAME,
+  assertWriteFreezeInactive,
+} from "./adminAuthHelper.js";
 import {
   authenticateCaller,
   sanitizeInput,
@@ -217,6 +221,7 @@ export const replaceReportFile = onCall(
   ): Promise<ReplaceReportFileResponse> => {
     const { storage, db } = getAdminInstances();
     const caller = await authenticateCaller(request, db);
+    await assertWriteFreezeInactive(db, "replaceReportFile");
 
     const { storagePath, newFileBase64, fileName, contentType, summaryNotes } = request.data || {};
 

@@ -1,6 +1,10 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
-import { getAdminInstances, recordAdminAuditLog } from "./adminAuthHelper.js";
+import {
+  getAdminInstances,
+  recordAdminAuditLog,
+  assertWriteFreezeInactive,
+} from "./adminAuthHelper.js";
 import { validateManagedPassword } from "./passwordValidator.js";
 import {
   validateFacilityPasswordChangeAuth,
@@ -39,6 +43,7 @@ export const changeFacilityPassword = onCall(
 
     const callerUid = request.auth.uid;
     const { auth, db } = getAdminInstances();
+    await assertWriteFreezeInactive(db, "changeFacilityPassword");
 
     // 2. Validate Input Payload
     const data = request.data;

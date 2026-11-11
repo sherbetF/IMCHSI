@@ -75,16 +75,16 @@ async function validateFileSignature(file: File): Promise<{
     return { isValid: true, detectedType: "image/jpeg" };
   }
 
-  // WebP: RIFF ... WEBP
+  // WebP: RIFF ... WEBP (0x52, 0x49, 0x46, 0x46 ... 0x57, 0x45, 0x42, 0x50)
   if (
     bytes[0] === 0x52 &&
     bytes[1] === 0x49 &&
     bytes[2] === 0x46 &&
     bytes[3] === 0x46 &&
     bytes[8] === 0x57 &&
-    bytes[9] === 0x41 &&
-    bytes[10] === 0x56 &&
-    bytes[11] === 0x45
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
   ) {
     return { isValid: true, detectedType: "image/webp" };
   }
@@ -177,13 +177,18 @@ export async function processFileThroughMandatoryPipeline(
   let isGzipCompressed = false;
   let pageCount: number | undefined = undefined;
 
-  const isPdf = mimeType === "application/pdf" || /\.pdf$/i.test(file.name);
-  const isImage = file.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name);
+  const isPdf =
+    mimeType === "application/pdf" || file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  const isImage =
+    mimeType.startsWith("image/") ||
+    file.type.startsWith("image/") ||
+    /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name);
 
   if (isPdf) {
+    mimeType = "application/pdf";
+    isGzipCompressed = false;
     try {
       const rawBuffer = await file.arrayBuffer();
-      // Load PDF via pdf-lib for structural verification & stream optimization
       const pdfDoc = await PDFDocument.load(rawBuffer, { ignoreEncryption: true });
       pageCount = pdfDoc.getPageCount();
 
@@ -191,41 +196,19 @@ export async function processFileThroughMandatoryPipeline(
         throw new Error("PDF file contains no valid pages.");
       }
 
-      // Save optimized PDF stream preserving selectable text, fonts, vector paths & layout
       const optimizedPdfBytes = await pdfDoc.save({ useObjectStreams: true });
       processedBuffer = optimizedPdfBytes.buffer as ArrayBuffer;
 
-      // If optimization didn't shrink or environment had no stream delta, fall back to gzip stream
-      if (
-        processedBuffer.byteLength >= rawBuffer.byteLength &&
-        typeof CompressionStream !== "undefined"
-      ) {
-        const cs = new CompressionStream("gzip");
-        const writer = cs.writable.getWriter();
-        writer.write(rawBuffer);
-        writer.close();
-        const res = new Response(cs.readable);
-        const gzipBlob = await res.blob();
-        processedBuffer = await gzipBlob.arrayBuffer();
-        isGzipCompressed = true;
-      }
-    } catch (pdfErr) {
-      console.warn("pdf-lib structural optimization fallback to GZIP stream:", pdfErr);
-      const rawBuffer = await file.arrayBuffer();
-      if (typeof CompressionStream !== "undefined") {
-        const cs = new CompressionStream("gzip");
-        const writer = cs.writable.getWriter();
-        writer.write(rawBuffer);
-        writer.close();
-        const res = new Response(cs.readable);
-        const gzipBlob = await res.blob();
-        processedBuffer = await gzipBlob.arrayBuffer();
-        isGzipCompressed = true;
-      } else {
+      // Never convert PDF into GZIP. If optimization didn't shrink, use raw buffer.
+      if (processedBuffer.byteLength >= rawBuffer.byteLength) {
         processedBuffer = rawBuffer;
       }
+    } catch (pdfErr) {
+      console.warn("pdf-lib structural optimization fallback to raw PDF buffer:", pdfErr);
+      processedBuffer = await file.arrayBuffer();
     }
   } else if (isImage) {
+    isGzipCompressed = false;
     try {
       const compressedResult = await compressImageCanvas(file, 2560, 0.82);
       const dataUrl = compressedResult.dataUrl;
@@ -242,24 +225,9 @@ export async function processFileThroughMandatoryPipeline(
       processedBuffer = await file.arrayBuffer();
     }
   } else {
-    // Non-image / Document formats (DOCX, TXT, CSV, DICOM) -> GZIP lossless stream
+    // Non-image / non-PDF document formats -> raw buffer or gzip
     const rawBuffer = await file.arrayBuffer();
-    if (typeof CompressionStream !== "undefined") {
-      try {
-        const cs = new CompressionStream("gzip");
-        const writer = cs.writable.getWriter();
-        writer.write(rawBuffer);
-        writer.close();
-        const res = new Response(cs.readable);
-        const gzipBlob = await res.blob();
-        processedBuffer = await gzipBlob.arrayBuffer();
-        isGzipCompressed = true;
-      } catch {
-        processedBuffer = rawBuffer;
-      }
-    } else {
-      processedBuffer = rawBuffer;
-    }
+    processedBuffer = rawBuffer;
   }
 
   // STEP 4: Integrity Verification
@@ -268,7 +236,6 @@ export async function processFileThroughMandatoryPipeline(
   let compressedSizeBytes = processedBuffer.byteLength;
   let finalBuffer = processedBuffer;
 
-  // Fallback guard: Never enlarge files unintentionally
   if (!isGzipCompressed && compressedSizeBytes > originalSizeBytes) {
     finalBuffer = await file.arrayBuffer();
     compressedSizeBytes = originalSizeBytes;
@@ -276,21 +243,16 @@ export async function processFileThroughMandatoryPipeline(
 
   const sha256Checksum = await computeSha256Checksum(finalBuffer);
 
-  // Compute final savings
   const savingsPercent = Math.max(
     0,
     Math.round(((originalSizeBytes - compressedSizeBytes) / originalSizeBytes) * 100),
   );
 
-  const finalDataUrl = isGzipCompressed
-    ? arrayBufferToDataUrl(finalBuffer, "application/gzip")
-    : arrayBufferToDataUrl(finalBuffer, mimeType);
-
   const compressedBlob = new Blob([finalBuffer], {
-    type: isGzipCompressed ? "application/gzip" : mimeType,
+    type: mimeType,
   });
   const compressedFile = new File([compressedBlob], file.name, {
-    type: isGzipCompressed ? "application/gzip" : mimeType,
+    type: mimeType,
   });
 
   reportProgress("completed", "Compression and verification completed.", 100);
@@ -304,10 +266,10 @@ export async function processFileThroughMandatoryPipeline(
     compressedSizeFormatted: formatBytes(compressedSizeBytes),
     compressionSavingsPercent: savingsPercent,
     sha256Checksum,
-    dataUrl: finalDataUrl,
+    dataUrl: "", // Never store or persist Base64 data URLs in Firestore
     compressedFileOrBlob: compressedFile,
     compressionStatus: "completed",
-    isGzipCompressed,
+    isGzipCompressed: false,
     pageCount,
   };
 }

@@ -16,7 +16,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TARGET_PROJECT_ID = "outsource-f1e0f";
-const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+const TARGET_DATABASE_ID = (
+  process.env.HOSPITALHUB_PRIMARY_DB ||
+  "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+).trim();
 
 const COLLECTIONS = [
   "echo_appointments",
@@ -58,7 +61,8 @@ async function runAudit() {
     }
   }
 
-  const db = getFirestore(app, TARGET_DATABASE_ID);
+  const db =
+    TARGET_DATABASE_ID === "(default)" ? getFirestore(app) : getFirestore(app, TARGET_DATABASE_ID);
 
   // 1. Load static configured facilities list
   const configuredFacilities = getAllCanonicalFacilities();

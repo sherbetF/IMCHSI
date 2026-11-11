@@ -1,7 +1,12 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
 import { randomBytes } from "crypto";
-import { getAdminInstances, verifyAdminCaller, recordAdminAuditLog } from "./adminAuthHelper.js";
+import {
+  getAdminInstances,
+  verifyAdminCaller,
+  recordAdminAuditLog,
+  assertWriteFreezeInactive,
+} from "./adminAuthHelper.js";
 import { validateManagedPassword } from "./passwordValidator.js";
 import { buildConsumerFacilityProfilePayload } from "./facilityPasswordSecurity.js";
 import { CANONICAL_FACILITIES } from "./canonicalFacilities.js";
@@ -15,6 +20,7 @@ export const createManagedAccount = onCall(
   ): Promise<ManagedAccountOperationResponse> => {
     const { auth, db } = getAdminInstances();
     const { callerUid } = await verifyAdminCaller(request, db);
+    await assertWriteFreezeInactive(db, "createManagedAccount");
 
     const data = request.data;
     if (!data || !data.accountType || !data.password) {
@@ -107,16 +113,14 @@ export const createManagedAccount = onCall(
         );
       }
 
-      // Step 2: Create Trusted Firestore Profile in Named Database
+      // Step 2: Create Trusted Firestore Profile in Named Database & Mirror to Default Database
       try {
-        await db
-          .collection("users")
-          .doc(createdAuthUser.uid)
-          .set({
-            ...buildConsumerFacilityProfilePayload(canonical),
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        const facilityProfile = {
+          ...buildConsumerFacilityProfilePayload(canonical),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        await db.collection("users").doc(createdAuthUser.uid).set(facilityProfile);
       } catch (err: unknown) {
         // Rollback created Auth user on profile creation failure
         console.error("Firestore profile creation failed, rolling back Auth user:", err);
@@ -222,16 +226,17 @@ export const createManagedAccount = onCall(
         );
       }
 
-      // Step 2: Create Trusted Firestore Profile in Named Database
+      // Step 2: Create Trusted Firestore Profile in Named Database & Mirror to Default Database
       try {
-        await db.collection("users").doc(createdAuthUser.uid).set({
+        const staffPayload = {
           role: staffDef.role,
           accountKey: staffDef.accountKey,
           displayName: staffDef.displayName,
           active: true,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-        });
+        };
+        await db.collection("users").doc(createdAuthUser.uid).set(staffPayload);
       } catch (err: unknown) {
         console.error("Firestore profile creation failed, rolling back Auth user:", err);
         await auth.deleteUser(createdAuthUser.uid).catch((delErr) => {
@@ -336,16 +341,17 @@ export const createManagedAccount = onCall(
         );
       }
 
-      // Step 2: Create Trusted Firestore Profile
+      // Step 2: Create Trusted Firestore Profile in Named Database & Mirror to Default Database
       try {
-        await db.collection("users").doc(createdAuthUser.uid).set({
+        const doctorPayload = {
           role: "doctor",
           doctorId: doctorId,
           displayName: displayName.trim(),
           active: true,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-        });
+        };
+        await db.collection("users").doc(createdAuthUser.uid).set(doctorPayload);
       } catch (err: unknown) {
         console.error("Firestore profile creation failed for Doctor, rolling back:", err);
         await auth.deleteUser(createdAuthUser.uid).catch((delErr) => {

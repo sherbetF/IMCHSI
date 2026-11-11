@@ -48,6 +48,13 @@ function decodeDataUrl(dataUrl) {
 }
 
 async function runMigration() {
+  if (process.env.HOSPITALHUB_WRITE_FREEZE === "true") {
+    console.error(
+      "[WRITE FREEZE ACTIVE] Database write freeze is enabled. Report migration aborted.",
+    );
+    process.exit(1);
+  }
+
   console.log("Starting medical report file migration to Firebase Storage...\n");
 
   let app;
@@ -59,7 +66,12 @@ async function runMigration() {
     app = initializeApp();
   }
 
-  const db = getFirestore(app);
+  const TARGET_DATABASE_ID = (
+    process.env.HOSPITALHUB_PRIMARY_DB ||
+    "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+  ).trim();
+  const db =
+    TARGET_DATABASE_ID === "(default)" ? getFirestore(app) : getFirestore(app, TARGET_DATABASE_ID);
   const bucket = getStorage(app).bucket();
 
   let totalInspected = 0;

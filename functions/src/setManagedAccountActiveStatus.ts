@@ -5,6 +5,7 @@ import {
   verifyAdminCaller,
   recordAdminAuditLog,
   resolveAndVerifyDoctorAccount,
+  assertWriteFreezeInactive,
 } from "./adminAuthHelper.js";
 import { CANONICAL_FACILITIES } from "./canonicalFacilities.js";
 import { PARAMEDIC_NURSE_ACCOUNT } from "./managedStaffAccounts.js";
@@ -20,6 +21,7 @@ export const setManagedAccountActiveStatus = onCall(
   ): Promise<ManagedAccountOperationResponse> => {
     const { auth, db } = getAdminInstances();
     const { callerUid } = await verifyAdminCaller(request, db);
+    await assertWriteFreezeInactive(db, "setManagedAccountActiveStatus");
 
     const data = request.data;
     if (!data || !data.accountType || typeof data.active !== "boolean") {

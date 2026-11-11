@@ -2,10 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
+import { IS_MAINTENANCE_MODE } from "./lib/firebase";
+import { MaintenanceNoticeScreen } from "./components/hospital/MaintenanceNoticeScreen";
 import "./styles.css";
 
 const router = getRouter();
-const IS_MAINTENANCE = false; // Toggle this to false to disable maintenance mode
 
 declare module "@tanstack/react-router" {
   interface Register {
@@ -18,7 +19,7 @@ if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <RouterProvider router={router} />
+      {IS_MAINTENANCE_MODE ? <MaintenanceNoticeScreen /> : <RouterProvider router={router} />}
     </React.StrictMode>,
   );
 }

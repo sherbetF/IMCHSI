@@ -3,8 +3,10 @@ import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/r
 import { useEffect } from "react";
 
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { IS_MAINTENANCE_MODE } from "@/lib/firebase";
 import { FacilityProvider, useFacility } from "@/context/FacilityContext";
 import { FacilitySelectModal } from "@/components/hospital/FacilitySelectModal";
+import { MaintenanceNoticeScreen } from "@/components/hospital/MaintenanceNoticeScreen";
 import { FacilityPasswordChangeScreen } from "@/components/facility/FacilityPasswordChangeScreen";
 import { Toaster } from "@/components/ui/sonner";
 import { getFacilityPasswordGateState } from "@/utils/facilityPasswordSecurity";
@@ -78,6 +80,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootContent() {
   const { currentUser, userRole, mustChangePassword } = useFacility();
 
+  if (IS_MAINTENANCE_MODE) {
+    return (
+      <>
+        <MaintenanceNoticeScreen />
+        <Toaster />
+      </>
+    );
+  }
+
   const gateState = getFacilityPasswordGateState({
     ...(userRole != null ? { role: userRole } : {}),
     active: true,
@@ -106,6 +117,15 @@ function RootContent() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  if (IS_MAINTENANCE_MODE) {
+    return (
+      <>
+        <MaintenanceNoticeScreen />
+        <Toaster />
+      </>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

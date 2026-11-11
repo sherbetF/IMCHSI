@@ -21,7 +21,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TARGET_PROJECT_ID = "outsource-f1e0f";
-const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+const TARGET_DATABASE_ID = (
+  process.env.HOSPITALHUB_PRIMARY_DB ||
+  "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+).trim();
 
 const COLLECTIONS = [
   "echo_appointments",
@@ -36,6 +39,11 @@ const COLLECTIONS = [
 
 async function runMigrationAudit() {
   const isApply = process.argv.includes("--apply");
+  if (isApply && process.env.HOSPITALHUB_WRITE_FREEZE === "true") {
+    throw new Error(
+      "[WRITE FREEZE ACTIVE] Applying facility ID migrations is blocked during database maintenance.",
+    );
+  }
   const mode = isApply ? "APPLY" : "DRY-RUN";
 
   console.log(`==================================================`);
@@ -128,13 +136,14 @@ async function runMigrationAudit() {
     }
   }
 
-  // Explicitly select the target named Firestore database ID (fail-closed, no default fallback)
-  if (!TARGET_DATABASE_ID || TARGET_DATABASE_ID === "(default)") {
-    console.error("❌ Fatal Configuration Error: Named database selection is required.");
+  // Select the configured Firestore database ID (supports both named DB and (default) after cutover)
+  if (!TARGET_DATABASE_ID) {
+    console.error("❌ Fatal Configuration Error: Database selection is required.");
     process.exit(1);
   }
 
-  const db = getFirestore(app, TARGET_DATABASE_ID);
+  const db =
+    TARGET_DATABASE_ID === "(default)" ? getFirestore(app) : getFirestore(app, TARGET_DATABASE_ID);
 
   // 2. LOAD LIVE TRUSTED PROFILES FOR ACCOUNT STATUS CHECK (role == "facility")
   console.log(

@@ -14,7 +14,24 @@ import fs from "fs";
 import crypto from "crypto";
 import { FACILITIES_DATA } from "../../src/data/facilities.ts";
 
-const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+const TARGET_DATABASE_ID = (
+  process.env.HOSPITALHUB_PRIMARY_DB ||
+  "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+).trim();
+
+export function assertCliWriteFreezeInactive(operationName = "CLI mutation") {
+  if (process.env.HOSPITALHUB_WRITE_FREEZE === "true") {
+    throw new Error(
+      `[WRITE FREEZE ACTIVE] HospitalHub write freeze is enabled. Blocked ${operationName}.`,
+    );
+  }
+}
+
+function getTargetFirestore(appInstance) {
+  return TARGET_DATABASE_ID === "(default)"
+    ? getFirestore(appInstance)
+    : getFirestore(appInstance, TARGET_DATABASE_ID);
+}
 
 let cachedApp = null;
 let cachedAuth = null;
@@ -29,7 +46,7 @@ export function initializeAdminApp() {
   if (apps.length > 0) {
     cachedApp = apps[0];
     cachedAuth = getAuth(cachedApp);
-    cachedDb = getFirestore(cachedApp, TARGET_DATABASE_ID);
+    cachedDb = getTargetFirestore(cachedApp);
     return { app: cachedApp, auth: cachedAuth, db: cachedDb };
   }
 
@@ -57,7 +74,7 @@ export function initializeAdminApp() {
   }
 
   cachedAuth = getAuth(cachedApp);
-  cachedDb = getFirestore(cachedApp, TARGET_DATABASE_ID);
+  cachedDb = getTargetFirestore(cachedApp);
   return { app: cachedApp, auth: cachedAuth, db: cachedDb };
 }
 
@@ -231,6 +248,7 @@ export async function getFacilityAccountStatus(facilityId) {
  * Provisions a new facility account (Create-Only with rollback).
  */
 export async function provisionFacilityAccount(facilityId, facilityName, category, password) {
+  assertCliWriteFreezeInactive("provisionFacilityAccount");
   validatePasswordStrength(password);
   const { auth, db } = initializeAdminApp();
   const email = `facility_${facilityId}@auth.local`;
@@ -283,6 +301,20 @@ export async function provisionFacilityAccount(facilityId, facilityName, categor
       },
       { merge: true },
     );
+
+    // Mirror authorization profile to (default) Firestore database
+    const defaultDb = getFirestore(cachedApp);
+    await defaultDb.collection("users").doc(newlyCreatedAuthUid).set(
+      {
+        role: "facility",
+        facilityId: facilityId,
+        facilityName: facilityName,
+        category: category,
+        active: true,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
   } catch (err) {
     // Rollback Auth user
     try {
@@ -311,6 +343,7 @@ export async function provisionFacilityAccount(facilityId, facilityName, categor
  * Resets the password of an existing facility.
  */
 export async function resetFacilityPassword(facilityId, newPassword) {
+  assertCliWriteFreezeInactive("resetFacilityPassword");
   validatePasswordStrength(newPassword);
   const { auth, db } = initializeAdminApp();
   const status = await getFacilityAccountStatus(facilityId);
@@ -354,6 +387,7 @@ export async function resetFacilityPassword(facilityId, newPassword) {
  * Sets active/inactive status for a facility account.
  */
 export async function setFacilityActiveStatus(facilityId, active) {
+  assertCliWriteFreezeInactive("setFacilityActiveStatus");
   const { db } = initializeAdminApp();
   const status = await getFacilityAccountStatus(facilityId);
 

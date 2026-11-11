@@ -18,6 +18,9 @@ import fs from "fs";
 import { getSecurePasswordInput } from "./prompt-helper.js";
 
 async function provisionOutsource() {
+  if (process.env.HOSPITALHUB_WRITE_FREEZE === "true") {
+    throw new Error("[WRITE FREEZE ACTIVE] Provisioning is blocked during database maintenance.");
+  }
   const email = "outsource@auth.local";
 
   // Load service account or initialize with default application credentials
@@ -30,8 +33,14 @@ async function provisionOutsource() {
     app = initializeApp();
   }
 
+  const TARGET_DATABASE_ID = (
+    process.env.HOSPITALHUB_PRIMARY_DB ||
+    "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+  ).trim();
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  const namedDb =
+    TARGET_DATABASE_ID === "(default)" ? getFirestore(app) : getFirestore(app, TARGET_DATABASE_ID);
+  const defaultDb = getFirestore(app);
 
   // 1. Check if Auth account already exists
   let existingUser = null;
@@ -44,7 +53,7 @@ async function provisionOutsource() {
   }
 
   if (existingUser) {
-    const userDocRef = db.collection("users").doc(existingUser.uid);
+    const userDocRef = namedDb.collection("users").doc(existingUser.uid);
     const userDocSnap = await userDocRef.get();
 
     if (!userDocSnap.exists) {
@@ -84,18 +93,28 @@ async function provisionOutsource() {
     process.exit(1);
   }
 
-  // 4. Create trusted Firestore authorization profile
+  // 4. Create trusted Firestore authorization profile in namedDb and defaultDb mirror
   let newlyCreatedAuthUid = newUserRecord.uid;
   try {
-    const userDocRef = db.collection("users").doc(newlyCreatedAuthUid);
-    await userDocRef.set({
+    const outsourceProfile = {
       role: "outsource",
       active: true,
       facilityId: "outsource",
       facilityName: "Outsource Radiology & Diagnostic Services",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    };
+    await namedDb.collection("users").doc(newlyCreatedAuthUid).set(outsourceProfile);
+    await defaultDb.collection("users").doc(newlyCreatedAuthUid).set(
+      {
+        role: "outsource",
+        active: true,
+        facilityId: "outsource",
+        facilityName: "Outsource Radiology & Diagnostic Services",
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
   } catch (err) {
     console.error(
       `Failed to create Firestore profile for outsource account ${email}. Initiating rollback of newly created Auth user...`,

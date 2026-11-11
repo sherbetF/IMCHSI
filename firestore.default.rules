@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all: no overlapping rule grants client write access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Server-maintained Authorization Mirror Collection in (default) database
+    // Authenticated users may ONLY read (get) their own authorization mirror document.
+    // Client list, create, update, and delete operations are strictly denied.
+    match /users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    // Outsource appointments read-only mirror for Storage rules authorization
+    match /outsource_appointments/{appointmentId} {
+      allow get: if request.auth != null;
+      allow list, create, update, delete: if false;
+    }
+
+    // Rheumatology appointments read-only mirror for Storage rules authorization
+    match /rheumatology_appointments/{appointmentId} {
+      allow get: if request.auth != null;
+      allow list, create, update, delete: if false;
+    }
+  }
+}

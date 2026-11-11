@@ -1,6 +1,6 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { getAdminInstances } from "./adminAuthHelper.js";
+import { getAdminInstances, assertWriteFreezeInactive } from "./adminAuthHelper.js";
 
 export interface ReserveRheumatologyAttachmentSlotRequest {
   referralDocumentId: string;
@@ -92,7 +92,7 @@ async function verifyFacilityCaller(request: CallableRequest, db: any) {
   }
 
   const facilityId = userData["facilityId"].trim();
-  return { callerUid, facilityId };
+  return { callerUid, facilityId, userData };
 }
 
 /**
@@ -107,6 +107,7 @@ export const reserveRheumatologyAttachmentSlot = onCall(
   ): Promise<AttachmentSlotResponse> => {
     const { db } = getAdminInstances();
     const { callerUid, facilityId } = await verifyFacilityCaller(request, db);
+    await assertWriteFreezeInactive(db, "reserveRheumatologyAttachmentSlot");
 
     const data = request.data;
     if (!data) {
@@ -269,6 +270,7 @@ export const releaseRheumatologyAttachmentSlot = onCall(
   ): Promise<AttachmentSlotResponse> => {
     const { db } = getAdminInstances();
     const { callerUid, facilityId } = await verifyFacilityCaller(request, db);
+    await assertWriteFreezeInactive(db, "releaseRheumatologyAttachmentSlot");
 
     const data = request.data;
     if (!data) {

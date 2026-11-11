@@ -46,14 +46,16 @@ import {
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { generateAppointmentId, formatAppointmentCode } from "@/utils/appointmentId";
-import { compressResultFile } from "@/utils/fileCompressor";
-import { openPdfInNewTab, downloadBlobFile } from "@/utils/fileViewerUtils";
+import { uploadReportFile, viewReportFile, downloadReportFile } from "@/services/reportStorage";
 
 export type TestResultFile = {
+  storagePath?: string;
   fileName: string;
+  contentType?: string;
+  fileSize?: number;
   uploadedAt: string;
-  summaryNotes: string;
-  dataUrl?: string;
+  summaryNotes?: string;
+  dataUrl?: string; // legacy fallback
   originalSizeFormatted?: string;
   compressedSizeFormatted?: string;
 };
@@ -182,29 +184,48 @@ export function HolterAppointment() {
     directFileInputRef.current?.click();
   };
 
-  const handleViewPdf = (resultFile?: TestResultFile) => {
+  const handleViewPdf = async (resultFile?: TestResultFile) => {
     if (!resultFile) {
       toast.error("No result file attached.");
       return;
     }
-    if (!resultFile.dataUrl) {
-      toast.error("File content missing for this record. Please re-upload the result.");
+    if (resultFile.storagePath) {
+      try {
+        await viewReportFile(resultFile.storagePath, resultFile.fileName);
+      } catch (err) {
+        console.error("Failed to view file from Storage:", err);
+        toast.error("Failed to open report file.");
+      }
       return;
     }
-    openPdfInNewTab(resultFile.dataUrl, resultFile.fileName);
+    if (resultFile.dataUrl) {
+      openPdfInNewTab(resultFile.dataUrl, resultFile.fileName);
+      return;
+    }
+    toast.error("File content missing for this record. Please re-upload the result.");
   };
 
-  const handleDownload = (resultFile?: TestResultFile) => {
+  const handleDownload = async (resultFile?: TestResultFile) => {
     if (!resultFile) {
       toast.error("No result file attached.");
       return;
     }
-    if (!resultFile.dataUrl) {
-      toast.error("File content missing for this record. Please re-upload the result.");
+    if (resultFile.storagePath) {
+      try {
+        await downloadReportFile(resultFile.storagePath, resultFile.fileName);
+        toast.success(`Downloading ${resultFile.fileName}`);
+      } catch (err) {
+        console.error("Failed to download file from Storage:", err);
+        toast.error("Failed to download report file.");
+      }
       return;
     }
-    downloadBlobFile(resultFile.dataUrl, resultFile.fileName);
-    toast.success(`Downloading ${resultFile.fileName}`);
+    if (resultFile.dataUrl) {
+      downloadBlobFile(resultFile.dataUrl, resultFile.fileName);
+      toast.success(`Downloading ${resultFile.fileName}`);
+      return;
+    }
+    toast.error("File content missing for this record. Please re-upload the result.");
   };
 
   const handleDirectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,26 +233,25 @@ export function HolterAppointment() {
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    toast.info("Uploading result file...");
+    toast.info("Uploading result file to Firebase Storage...");
     try {
-      const compressed = await compressResultFile(file);
-      const newResult: TestResultFile = {
-        fileName: compressed.fileName,
-        uploadedAt: getLocalDateTimeString(),
-        summaryNotes: `${compressed.fileName} attached.`,
-        dataUrl: compressed.dataUrl,
-        originalSizeFormatted: compressed.originalSizeFormatted,
-        compressedSizeFormatted: compressed.compressedSizeFormatted,
-      };
+      const uploadMeta = await uploadReportFile(
+        file,
+        req.facilityId,
+        req.id,
+        false,
+        `${file.name} uploaded to Firebase Storage.`,
+      );
 
       await updateAppointment("holter", req.id, {
-        resultFile: newResult,
+        resultFile: uploadMeta,
         status: "Completed - Result Ready",
       });
       toast.success(`Diagnostic result uploaded and synced for ${req.patientName}`);
     } catch (err) {
-      console.error("Failed to upload holter result to Firebase:", err);
-      toast.error("Failed to upload result");
+      const errMsg = err instanceof Error ? err.message : "Failed to upload result";
+      console.warn("Holter result upload error:", errMsg);
+      toast.error(errMsg);
     } finally {
       e.target.value = "";
       activeUploadReqRef.current = null;
@@ -490,21 +510,24 @@ export function HolterAppointment() {
     }
 
     try {
-      let dataUrl = "";
-      let effectiveFileName = selectedFile?.name || resultFileName || "Holter_Result.pdf";
+      let uploadMeta = undefined;
+      const effectiveFileName = selectedFile?.name || resultFileName || "Holter_Result.pdf";
 
       if (selectedFile) {
-        toast.info("Attaching result file...");
-        const compressed = await compressResultFile(selectedFile);
-        dataUrl = compressed.dataUrl;
-        effectiveFileName = compressed.fileName;
+        toast.info("Uploading result file to Firebase Storage...");
+        uploadMeta = await uploadReportFile(
+          selectedFile,
+          uploadingReq.facilityId,
+          uploadingReq.id,
+          false,
+          resultSummaryNotes.trim() || "24 Hours Holter diagnostic report attached.",
+        );
       }
 
-      const newResult: TestResultFile = {
+      const newResult: TestResultFile = uploadMeta || {
         fileName: effectiveFileName,
         uploadedAt: getLocalDateTimeString(),
         summaryNotes: resultSummaryNotes.trim() || "24 Hours Holter diagnostic report attached.",
-        dataUrl: dataUrl,
       };
 
       await updateAppointment("holter", uploadingReq.id, {
@@ -517,8 +540,9 @@ export function HolterAppointment() {
       setSelectedFile(null);
       toast.success(`Diagnostic result uploaded and synced for ${uploadingReq.patientName}`);
     } catch (err) {
-      console.error("Failed to upload holter result to Firebase:", err);
-      toast.error("Failed to upload result");
+      const errMsg = err instanceof Error ? err.message : "Failed to upload result";
+      console.warn("Holter result upload error:", errMsg);
+      toast.error(errMsg);
     }
   };
 

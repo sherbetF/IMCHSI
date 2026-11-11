@@ -14,7 +14,10 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getAllCanonicalFacilities } from "./lib/facility-account-admin.js";
 
 const TARGET_PROJECT_ID = "outsource-f1e0f";
-const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
+const TARGET_DATABASE_ID = (
+  process.env.HOSPITALHUB_PRIMARY_DB ||
+  "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+).trim();
 
 function getExpectedFacilityAuthEmail(facilityId) {
   return `facility_${facilityId}@auth.local`;
@@ -39,8 +42,11 @@ async function diagnose() {
       projectId: TARGET_PROJECT_ID,
     });
     auth = getAuth(app);
-    // Explicitly target named database
-    db = getFirestore(app, TARGET_DATABASE_ID);
+    // Target configured primary database
+    db =
+      TARGET_DATABASE_ID === "(default)"
+        ? getFirestore(app)
+        : getFirestore(app, TARGET_DATABASE_ID);
   } catch (err) {
     console.error("Operation: Initialization");
     console.error("Error Code: INITIALIZATION_FAILED");

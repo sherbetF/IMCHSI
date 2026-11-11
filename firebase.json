@@ -4,6 +4,11 @@
       "database": "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c",
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
+    },
+    {
+      "database": "(default)",
+      "rules": "firestore.default.rules",
+      "indexes": "firestore.indexes.json"
     }
   ],
   "storage": {
@@ -17,25 +22,25 @@
     }
   ],
   "emulators": {
-  "auth": {
-    "port": 9099,
-    "host": "127.0.0.1"
-  },
-  "firestore": {
-    "port": 8080,
-    "host": "127.0.0.1"
-  },
-  "storage": {
-    "port": 9199,
-    "host": "127.0.0.1"
-  },
-  "functions": {
-    "port": 5001,
-    "host": "127.0.0.1"
-  },
-  "ui": {
-    "enabled": false
-  },
-  "singleProjectMode": true
-}
+    "auth": {
+      "port": 9099,
+      "host": "127.0.0.1"
+    },
+    "firestore": {
+      "port": 8080,
+      "host": "127.0.0.1"
+    },
+    "storage": {
+      "port": 9199,
+      "host": "127.0.0.1"
+    },
+    "functions": {
+      "port": 5001,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
 }

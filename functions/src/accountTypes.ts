@@ -169,13 +169,14 @@ export type AdminAuditEventAction =
   | "DOCTOR_PASSWORD_RESET"
   | "DOCTOR_DISABLED"
   | "DOCTOR_REACTIVATED"
-  | "FACILITY_PASSWORD_CHANGED";
+  | "FACILITY_PASSWORD_CHANGED"
+  | "AUTHORIZATION_MIRROR_SYNCED";
 
 export interface AdminAuditLogEntry {
   id?: string;
   action: AdminAuditEventAction;
   adminUid: string;
-  targetRole: "facility" | "paramedic_nurse" | "doctor";
+  targetRole: "facility" | "paramedic_nurse" | "doctor" | "admin";
   targetAccountType: ManagedAccountCategory;
   targetIdentifier: string; // facilityId, accountKey, or doctorId
   timestamp: unknown; // Firestore Timestamp

@@ -1,0 +1,160 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions (Identical Read Authorization Requirements)
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Trusted Administrator Authorization:
+    // Derives authorization exclusively from a trusted Firestore user record (users/{uid}),
+    // never from client claims or email address alone.
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isFacilityUser() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "facility" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // Paramedic / Nurse Authorization:
+    function isParamedicNurse() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "paramedic_nurse" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // Doctor Authorization:
+    function isDoctor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "doctor" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    function isOutsourceUser() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "outsource" &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
+      );
+    }
+
+    // Helper to get authenticated user's trusted facilityId
+    function userFacilityId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facilityId;
+    }
+
+    // Canonical facility & role authorization helpers
+    function canAccessRecord(record) {
+      return isAdmin() || isParamedicNurse() || isFacilityUser() || isOutsourceUser();
+    }
+
+    // =========================================================================
+    // TEMPORARY MIGRATION MAINTENANCE RULES FOR SOURCE NAMED DATABASE:
+    // - PRESERVES ALL AUTHORIZED READS FOR AUTHENTICATED ROLES
+    // - DENIES ALL DIRECT CLIENT WRITES (CREATE, UPDATE, DELETE) ACROSS ALL COLLECTIONS
+    // - DOES NOT WEAKEN ANY AUTHORIZATION REQUIREMENT
+    // - RESTORATION: DEPLOY firestore.rules (OR firestore.production.rules) TO RESTORE WRITES
+    // =========================================================================
+
+    // User profiles (secure and restricted)
+    // Authorized read preserved; client writes strictly denied during migration
+    match /users/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Facility records
+    // Authorized read preserved; writes denied
+    match /facilities/{facilityId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
+    // Admin config
+    // Authorized read preserved; writes denied
+    match /admin_config/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Secure appointment collections
+    // All direct client writes denied during migration freeze; authorized reads fully preserved
+    match /echo_appointments/{docId} {
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow write: if false;
+    }
+
+    match /stress_test_appointments/{docId} {
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow write: if false;
+    }
+
+    match /holter_appointments/{docId} {
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow write: if false;
+    }
+
+    match /blood_pressure_appointments/{docId} {
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow write: if false;
+    }
+
+    match /lung_function_appointments/{docId} {
+      allow read: if isSignedIn() && canAccessRecord(resource.data);
+      allow write: if false;
+    }
+
+    match /outsource_appointments/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow write: if false;
+    }
+
+    match /rheumatology_appointments/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isDoctor() || isParamedicNurse() || canAccessRecord(resource.data));
+      allow write: if false;
+
+      // Clinical Document Attachments Subcollection
+      match /attachments/{attachmentId} {
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          isDoctor() ||
+          (isFacilityUser() &&
+           get(/databases/$(database)/documents/rheumatology_appointments/$(docId)).data.facilityId == userFacilityId())
+        );
+        allow write: if false;
+      }
+
+      // Backend-Owned Attachment Control Subcollection
+      match /attachment_control/{controlId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /outsource_reports/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow write: if false;
+    }
+
+    match /diagnostic_results/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isOutsourceUser() || canAccessRecord(resource.data));
+      allow write: if false;
+    }
+  }
+}

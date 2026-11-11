@@ -1,7 +1,4 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 import { CANONICAL_FACILITIES } from "./canonicalFacilities.js";
 import { MANAGED_STAFF_ACCOUNTS } from "./managedStaffAccounts.js";
 import {
@@ -11,16 +8,7 @@ import {
   ManagedDoctorItem,
   ManagedAccountStatus,
 } from "./accountTypes.js";
-
-const TARGET_DATABASE_ID = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
-
-function getAdminInstances() {
-  const apps = getApps();
-  const app = apps.length > 0 ? apps[0]! : initializeApp();
-  const auth = getAuth(app);
-  const db = getFirestore(app, TARGET_DATABASE_ID);
-  return { app, auth, db };
-}
+import { getAdminInstances } from "./adminAuthHelper.js";
 
 interface AuthUserSummary {
   uid: string;

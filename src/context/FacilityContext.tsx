@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { FacilityCategory } from "@/data/facilities";
 import { auth, db } from "@/lib/firebase";
 import {
@@ -10,6 +10,7 @@ import {
   User,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { ensureUserAuthorizationMirrorSynced } from "@/services/authorizationMirrorClient";
 
 export interface SelectedFacility {
   facilityId: string;
@@ -72,6 +73,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [facilityId, setFacilityId] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
+  const attemptedMirrorSyncUidRef = useRef<string | null>(null);
 
   const refreshUserProfile = async (): Promise<boolean> => {
     if (!auth.currentUser) {
@@ -129,6 +131,30 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setSelectedFacilityState(null);
             setIsOutsourceAuthenticated(false);
             return;
+          }
+
+          // Verify or synchronize the (default) Firestore database authorization mirror
+          // via the trusted backend callable with safe retry when temporarily unavailable.
+          if (attemptedMirrorSyncUidRef.current !== user.uid) {
+            void (async () => {
+              const syncResult = await ensureUserAuthorizationMirrorSynced({
+                uid: user.uid,
+                expectedRole: typeof userData["role"] === "string" ? userData["role"] : null,
+                maxRetries: 3,
+                baseDelayMs: 1500,
+              });
+
+              if (syncResult.verifiedInDefaultDb) {
+                attemptedMirrorSyncUidRef.current = user.uid;
+                console.info(
+                  `[FacilityContext] Verified authorization mirror in (default) database for UID ${user.uid} (role: ${syncResult.mirroredRole}, active: ${String(syncResult.mirroredActive)}).`,
+                );
+              } else {
+                console.info(
+                  `[FacilityContext] Authorization mirror in (default) not yet verified for UID ${user.uid} after ${syncResult.attempts} attempt(s) (${syncResult.errorMessage || syncResult.errorCode || "unverified"}). Ensure 'firebase deploy --only functions,firestore,storage' has been executed.`,
+                );
+              }
+            })();
           }
 
           if (userData["role"] === "admin") {
@@ -234,6 +260,7 @@ export const FacilityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setIsOutsourceAuthenticated(false);
         }
       } else {
+        attemptedMirrorSyncUidRef.current = null;
         setCurrentUser(null);
         setUserRole(null);
         setFacilityId(null);

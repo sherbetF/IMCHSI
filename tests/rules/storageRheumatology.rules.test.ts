@@ -26,11 +26,12 @@ describe("Stage 7 — Storage Security Rules Verification (Actual storage.rules)
       );
     });
 
-    it("evaluates trusted authorization against production named database", () => {
-      const namedDb = "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c";
-      expect(rulesContent).toContain(namedDb);
+    it("evaluates trusted authorization against default database authorization mirror", () => {
       expect(rulesContent).toContain(
-        `firestore.get(/databases/${namedDb}/documents/users/$(request.auth.uid))`,
+        "firestore.get(/databases/(default)/documents/users/$(request.auth.uid))",
+      );
+      expect(rulesContent).not.toContain(
+        "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c",
       );
     });
   });

@@ -5,6 +5,7 @@ import {
   verifyAdminCaller,
   recordAdminAuditLog,
   resolveAndVerifyDoctorAccount,
+  assertWriteFreezeInactive,
 } from "./adminAuthHelper.js";
 import { validateManagedPassword } from "./passwordValidator.js";
 import { buildConsumerFacilityResetUpdatePayload } from "./facilityPasswordSecurity.js";
@@ -22,6 +23,7 @@ export const resetManagedAccountPassword = onCall(
   ): Promise<ManagedAccountOperationResponse> => {
     const { auth, db } = getAdminInstances();
     const { callerUid } = await verifyAdminCaller(request, db);
+    await assertWriteFreezeInactive(db, "resetManagedAccountPassword");
 
     const data = request.data;
     if (!data || !data.accountType || !data.newPassword) {

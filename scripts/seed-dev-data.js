@@ -16,6 +16,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 
 async function seedDevData() {
+  if (process.env.HOSPITALHUB_WRITE_FREEZE === "true") {
+    console.error("[WRITE FREEZE ACTIVE] Database write freeze is enabled. Dev seeding aborted.");
+    process.exit(1);
+  }
+
   if (process.env.ALLOW_DEV_SEED !== "true") {
     console.error(
       "SAFETY ERROR: Dev seeding requires explicit environment confirmation: ALLOW_DEV_SEED=true",
@@ -33,7 +38,12 @@ async function seedDevData() {
     app = initializeApp();
   }
 
-  const db = getFirestore(app);
+  const TARGET_DATABASE_ID = (
+    process.env.HOSPITALHUB_PRIMARY_DB ||
+    "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+  ).trim();
+  const db =
+    TARGET_DATABASE_ID === "(default)" ? getFirestore(app) : getFirestore(app, TARGET_DATABASE_ID);
   console.log("Connected to Firestore. Verifying environment before dev seeding...");
 
   // Clearly fictional synthetic dev fixture

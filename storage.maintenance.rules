@@ -1,0 +1,158 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default deny catch-all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions for read and download authorization
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return hasUserDoc() &&
+        getUserDoc().data.active == true;
+    }
+
+    function isAdmin() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "admin";
+    }
+
+    function isFacilityUser(facilityId) {
+      return isActiveUser() &&
+        getUserDoc().data.role == "facility" &&
+        getUserDoc().data.facilityId == facilityId;
+    }
+
+    function isParamedicNurse() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "paramedic_nurse";
+    }
+
+    function isOutsourceUser() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "outsource";
+    }
+
+    function getOutsourceAppt(reportId) {
+      return firestore.get(/databases/(default)/documents/outsource_appointments/$(reportId));
+    }
+
+    function isAssignedOutsourceProvider(reportId, facilityId) {
+      return isOutsourceUser() &&
+        firestore.exists(/databases/(default)/documents/outsource_appointments/$(reportId)) &&
+        getOutsourceAppt(reportId).data.facilityId == facilityId && (
+          (getUserDoc().data.outsourceProviderId is string &&
+           getUserDoc().data.outsourceProviderId.size() > 0 &&
+           getOutsourceAppt(reportId).data.outsourceProviderId == getUserDoc().data.outsourceProviderId) ||
+          (getUserDoc().data.providerId is string &&
+           getUserDoc().data.providerId.size() > 0 &&
+           getOutsourceAppt(reportId).data.providerId == getUserDoc().data.providerId)
+        );
+    }
+
+    // =========================================================================
+    // TEMPORARY MIGRATION MAINTENANCE STORAGE RULES:
+    // - PRESERVES ALL AUTHORIZED READS AND REPORT DOWNLOADS
+    // - STRICTLY DENIES ALL DIRECT CLIENT UPLOADS, OVERWRITES, AND DELETIONS
+    // - RESTORATION: DEPLOY storage.rules (OR storage.production.rules) TO RESTORE
+    // =========================================================================
+
+    // Facility medical diagnostic report files
+    match /facilities/{facilityId}/reports/{reportId}/{fileName} {
+      // READ: Authorized roles preserved
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser(facilityId));
+
+      // WRITES: Denied during migration maintenance
+      allow write: if false;
+    }
+
+    // Protected archived report versions
+    match /facilities/{facilityId}/reports/{reportId}/archive/{archiveId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser(facilityId));
+      allow write: if false;
+    }
+
+    // Outsource diagnostic reports
+    match /outsource/{facilityId}/reports/{reportId}/{fileName} {
+      // READ: Authorized roles preserved
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isAssignedOutsourceProvider(reportId, facilityId));
+
+      // WRITES: Denied during migration maintenance
+      allow write: if false;
+    }
+
+    // Protected archived Outsource report versions
+    match /outsource/{facilityId}/reports/{reportId}/archive/{archiveId}/{fileName} {
+      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId) || isAssignedOutsourceProvider(reportId, facilityId));
+      allow write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // SECURE RHEUMATOLOGY CLINICAL ATTACHMENTS (Stage 5)
+    // -------------------------------------------------------------
+    function getRheumUserDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isRheumActiveUser() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        getRheumUserDoc().data.active == true;
+    }
+
+    function isRheumAdmin() {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "admin";
+    }
+
+    function isRheumDoctor() {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "doctor" &&
+        getRheumUserDoc().data.doctorId is string &&
+        getRheumUserDoc().data.doctorId.size() > 0;
+    }
+
+    function isRheumFacilityUser(facilityId) {
+      return isRheumActiveUser() &&
+        getRheumUserDoc().data.role == "facility" &&
+        getRheumUserDoc().data.facilityId == facilityId;
+    }
+
+    function getRheumReferral(referralId) {
+      return firestore.get(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+    }
+
+    function rheumReferralExists(referralId) {
+      return firestore.exists(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+    }
+
+    match /rheumatology/{facilityId}/{referralId}/{attachmentId}/{fileName} {
+      // READ: Authorized roles preserved
+      allow read: if isSignedIn() && (
+        isRheumAdmin() ||
+        isRheumDoctor() ||
+        (isRheumFacilityUser(facilityId) &&
+         rheumReferralExists(referralId) &&
+         getRheumReferral(referralId).data.facilityId == facilityId)
+      );
+
+      // WRITES: All uploads, overwrites, and deletes denied during migration maintenance
+      allow write: if false;
+    }
+  }
+}

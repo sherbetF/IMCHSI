@@ -36,6 +36,7 @@ vi.mock("../../functions/src/adminAuthHelper.js", () => ({
   }),
   verifyAdminCaller: mocks.verifyAdminCaller,
   recordAdminAuditLog: mocks.recordAdminAuditLog,
+  assertWriteFreezeInactive: vi.fn().mockResolvedValue(undefined),
   resolveAndVerifyDoctorAccount: vi.fn(),
 }));
 

@@ -1,11 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  initializeFirestore,
-  getFirestore,
-  connectFirestoreEmulator,
-  doc,
-  getDocFromServer,
-} from "firebase/firestore";
+import { initializeFirestore, getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import {
   getAuth,
   setPersistence,
@@ -20,6 +14,35 @@ const LOCAL_TEST = import.meta.env["VITE_HOSPITALHUB_LOCAL_TEST"] === "true";
 
 if (LOCAL_TEST && import.meta.env.PROD) {
   throw new Error("Local Firebase test mode must not run in a production build.");
+}
+
+/**
+ * Delayed Database Switch:
+ * Defaults to `firebaseConfig.firestoreDatabaseId` (`ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c`).
+ * Can be switched to `(default)` via `VITE_FIRESTORE_DATABASE_ID="(default)"` or `firebase-applet-config.json`
+ * once data migration and parity verification are completed and approved.
+ */
+const configuredDatabaseId = (
+  import.meta.env["VITE_FIRESTORE_DATABASE_ID"] ||
+  firebaseConfig.firestoreDatabaseId ||
+  "(default)"
+).trim();
+
+export const ACTIVE_FIRESTORE_DATABASE_ID = configuredDatabaseId;
+export const IS_DEFAULT_PRIMARY_DB = !configuredDatabaseId || configuredDatabaseId === "(default)";
+
+/**
+ * Frontend Maintenance / Write-Freeze Gate.
+ * Activates only when explicitly set via VITE_MAINTENANCE_MODE="true".
+ */
+export const IS_MAINTENANCE_MODE = import.meta.env["VITE_MAINTENANCE_MODE"] === "true";
+
+export function assertClientWriteFreezeInactive(operationName = "write operation"): void {
+  if (IS_MAINTENANCE_MODE) {
+    throw new Error(
+      `HospitalHub is currently in read-only maintenance mode. Blocked client ${operationName}.`,
+    );
+  }
 }
 
 const effectiveConfig = LOCAL_TEST
@@ -47,7 +70,7 @@ if (LOCAL_TEST && app.options.projectId !== "demo-hospitalhub-local") {
 }
 
 function getOrCreateFirestore() {
-  const databaseId = firebaseConfig.firestoreDatabaseId;
+  const databaseId = IS_DEFAULT_PRIMARY_DB ? undefined : ACTIVE_FIRESTORE_DATABASE_ID;
 
   if (LOCAL_TEST) {
     return databaseId
@@ -61,7 +84,7 @@ function getOrCreateFirestore() {
     }
 
     return initializeFirestore(app, { experimentalForceLongPolling: true });
-  } catch (error) {
+  } catch {
     if (databaseId) {
       return getFirestore(app, databaseId);
     }
@@ -69,7 +92,16 @@ function getOrCreateFirestore() {
   }
 }
 
+function getOrCreateDefaultFirestore() {
+  try {
+    return getFirestore(app);
+  } catch {
+    return initializeFirestore(app, { experimentalForceLongPolling: true });
+  }
+}
+
 export const db = getOrCreateFirestore();
+export const defaultDb = IS_DEFAULT_PRIMARY_DB ? db : getOrCreateDefaultFirestore();
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
@@ -79,6 +111,9 @@ if (LOCAL_TEST) {
     disableWarnings: true,
   });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  if (defaultDb !== db) {
+    connectFirestoreEmulator(defaultDb, "127.0.0.1", 8080);
+  }
   connectStorageEmulator(storage, "127.0.0.1", 9199);
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 

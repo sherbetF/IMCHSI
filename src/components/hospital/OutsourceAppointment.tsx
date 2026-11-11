@@ -179,8 +179,7 @@ export function OutsourceAppointment() {
   const [duplicateOriginalDate, setDuplicateOriginalDate] = useState("");
   const [duplicateOriginalReason, setDuplicateOriginalReason] = useState("");
 
-  // Form preview modal state
-  const [selectedFormReq, setSelectedFormReq] = useState<OutsourceReport | null>(null);
+  const [subStatus, setSubStatus] = useState<string>("loading");
 
   // Direct file upload ref & state
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -196,26 +195,24 @@ export function OutsourceAppointment() {
     const req = activeUploadReqRef.current;
     if (!file || !req) return;
 
-    toast.info("Uploading report file...");
+    toast.info("Uploading report file to Firebase Storage...");
     try {
-      const compressed = await compressResultFile(file);
-      const newResult = {
-        fileName: compressed.fileName,
-        uploadedAt: getLocalDateTimeString(),
-        summaryNotes: `${compressed.fileName} attached.`,
-        dataUrl: compressed.dataUrl,
-        originalSizeBytes: compressed.originalSizeBytes,
-        originalSizeFormatted: compressed.originalSizeFormatted,
-      };
+      const uploadMeta = await uploadReportFile(
+        file,
+        req.facilityId || "GENERAL",
+        req.id,
+        true,
+        `${file.name} attached.`,
+      );
 
       await updateAppointment("outsource", req.id, {
-        resultFile: newResult,
+        resultFile: uploadMeta,
         status: "Completed - Result Ready",
       });
-      toast.success(`Report file attached and synced for ${req.patientName}`);
-    } catch (err) {
+      toast.success(`Report file attached and stored in Firebase Storage for ${req.patientName}`);
+    } catch (err: any) {
       console.error("Failed to attach report file to Firebase:", err);
-      toast.error("Failed to attach report file");
+      toast.error(err?.message || "Failed to attach report file");
     } finally {
       e.target.value = "";
       activeUploadReqRef.current = null;

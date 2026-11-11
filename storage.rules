@@ -14,16 +14,12 @@ service firebase.storage {
     }
 
     function hasUserDoc() {
-      return isSignedIn() && (
-        firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid)) ||
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-      );
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
     function getUserDoc() {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
-        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
-        : firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
     function isActiveUser() {
@@ -42,25 +38,23 @@ service firebase.storage {
         getUserDoc().data.facilityId == facilityId;
     }
 
+    function isParamedicNurse() {
+      return isActiveUser() &&
+        getUserDoc().data.role == "paramedic_nurse";
+    }
+
     function isOutsourceUser() {
       return isActiveUser() &&
         getUserDoc().data.role == "outsource";
     }
 
     function getOutsourceAppt(reportId) {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId))
-        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId))
-        : firestore.get(/databases/(default)/documents/outsource_appointments/$(reportId));
-    }
-
-    function isOutsourceApptExists(reportId) {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/outsource_appointments/$(reportId)) ||
-        firestore.exists(/databases/(default)/documents/outsource_appointments/$(reportId));
+      return firestore.get(/databases/(default)/documents/outsource_appointments/$(reportId));
     }
 
     function isAssignedOutsourceProvider(reportId, facilityId) {
       return isOutsourceUser() &&
-        isOutsourceApptExists(reportId) &&
+        firestore.exists(/databases/(default)/documents/outsource_appointments/$(reportId)) &&
         getOutsourceAppt(reportId).data.facilityId == facilityId && (
           (getUserDoc().data.outsourceProviderId is string &&
            getUserDoc().data.outsourceProviderId.size() > 0 &&
@@ -80,19 +74,16 @@ service firebase.storage {
 
     // Facility medical diagnostic report files
     match /facilities/{facilityId}/reports/{reportId}/{fileName} {
-      // READ: Authorized Facility Owner or Admin.
-      // Paramedic, Outsource, other facilities, and unauthenticated: DENIED.
-      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+      // READ: Admin, Paramedic/Nurse, or Owning Health Facility ONLY.
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser(facilityId));
 
-      // CREATE: Authorized Facility Owner or Admin for NEW files only.
-      // Direct client-side overwriting of existing files is forbidden (resource == null).
+      // CREATE: Admin or Paramedic/Nurse ONLY for NEW files. Facility accounts cannot upload.
       allow create: if isSignedIn() &&
         resource == null &&
-        (isAdmin() || isFacilityUser(facilityId)) &&
+        (isAdmin() || isParamedicNurse()) &&
         isValidReportFile();
 
       // UPDATE: Direct client-side same-path overwrite strictly DENIED.
-      // Replacement must use secure backend versioning function.
       allow update: if false;
 
       // DELETE: Direct client-side deletion DENIED for all client accounts.
@@ -101,7 +92,7 @@ service firebase.storage {
 
     // Protected archived report versions
     match /facilities/{facilityId}/reports/{reportId}/archive/{archiveId}/{fileName} {
-      allow read: if isSignedIn() && (isAdmin() || isFacilityUser(facilityId));
+      allow read: if isSignedIn() && (isAdmin() || isParamedicNurse() || isFacilityUser(facilityId));
       allow create, update, delete: if false;
     }
 
@@ -133,17 +124,13 @@ service firebase.storage {
     // -------------------------------------------------------------
     // SECURE RHEUMATOLOGY CLINICAL ATTACHMENTS (Stage 5)
     // -------------------------------------------------------------
-    // Database: ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c
     function getRheumUserDoc() {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
-        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid))
-        : firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
     function isRheumActiveUser() {
       return isSignedIn() &&
-        (firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/users/$(request.auth.uid)) ||
-         firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))) &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
         getRheumUserDoc().data.active == true;
     }
 
@@ -166,14 +153,11 @@ service firebase.storage {
     }
 
     function getRheumReferral(referralId) {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId))
-        ? firestore.get(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId))
-        : firestore.get(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+      return firestore.get(/databases/(default)/documents/rheumatology_appointments/$(referralId));
     }
 
     function rheumReferralExists(referralId) {
-      return firestore.exists(/databases/ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c/documents/rheumatology_appointments/$(referralId)) ||
-        firestore.exists(/databases/(default)/documents/rheumatology_appointments/$(referralId));
+      return firestore.exists(/databases/(default)/documents/rheumatology_appointments/$(referralId));
     }
 
     function canFacilityMutateRheumAttachment(facilityId, referralId) {

@@ -25,11 +25,12 @@ export const MaintenanceNoticeScreen: React.FC = () => {
         {/* Title & Body Description */}
         <div className="space-y-3">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            HospitalHub Maintenance in Progress
+            HospitalHub Scheduled Maintenance — Effective Immediately
           </h1>
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-md mx-auto">
-            HospitalHub is currently undergoing scheduled platform updates and security maintenance.
-            All system access is temporarily suspended.
+            HospitalHub will undergo database maintenance starting now. Please stop using
+            HospitalHub and do not create or update appointments, patient records, or diagnostic
+            reports until further notice.
           </p>
         </div>
 
@@ -37,14 +38,23 @@ export const MaintenanceNoticeScreen: React.FC = () => {
         <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 text-left space-y-3 text-xs sm:text-sm text-slate-400">
           <div className="flex items-center gap-2 text-slate-200 font-semibold border-b border-slate-800/80 pb-2">
             <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Estimated Window & Access Notice</span>
+            <span>Maintenance Instructions & Access Notice</span>
           </div>
-          <div className="space-y-1.5 text-slate-300 leading-relaxed">
+          <div className="space-y-2 text-slate-300 leading-relaxed">
             <p>
-              • System features (Referrals, Appointments, Attachments & Admin tools) are offline.
+              • If you are currently uploading a report or updating a record, please complete the
+              operation and inform the system administrator.
             </p>
             <p>
-              • User login and facility portals are temporarily locked to protect data integrity.
+              • Do not create or update appointments, patient records, or diagnostic reports until
+              further notice.
+            </p>
+            <p>
+              • Diagnostic reports and clinical attachment downloads may be temporarily unavailable
+              while database maintenance is in progress.
+            </p>
+            <p>
+              • We will notify everyone once the system has been verified and is safe to use again.
             </p>
           </div>
         </div>
@@ -54,11 +64,11 @@ export const MaintenanceNoticeScreen: React.FC = () => {
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-bold text-amber-300 uppercase tracking-wider">
-              Urgent Clinical Emergency Notice
+              Urgent Clinical Work & Downtime Procedures
             </p>
             <p className="leading-relaxed">
-              For urgent patient transfers or critical referral inquiries during this maintenance
-              period, please contact Hospital Kota Tinggi Emergency Command Desk directly.
+              Use the hospital&apos;s approved downtime procedures for any urgent clinical work, or
+              contact the Hospital Kota Tinggi Emergency Command Desk directly.
             </p>
           </div>
         </div>
