@@ -19,6 +19,7 @@ import {
 export interface ResultFileMetadata {
   storagePath: string;
   fileName: string;
+  originalFileName?: string;
   contentType: string;
   fileSize: number;
   uploadedAt: string;
@@ -317,7 +318,8 @@ export async function uploadReportFile(
 
   return {
     storagePath,
-    fileName: file.name,
+    fileName: uniqueFileName,
+    originalFileName: file.name,
     contentType: uploadContentType,
     fileSize: pipelineResult.compressedSizeBytes,
     uploadedAt: new Date().toISOString(),

@@ -504,8 +504,8 @@ export function HolterAppointment() {
   const handleSaveResult = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadingReq) return;
-    if (!selectedFile && !resultFileName) {
-      toast.error("Please select a diagnostic result report to upload.");
+    if (!selectedFile) {
+      toast.error("Please select an actual diagnostic report file to upload.");
       return;
     }
 
@@ -524,11 +524,11 @@ export function HolterAppointment() {
         );
       }
 
-      const newResult: TestResultFile = uploadMeta || {
-        fileName: effectiveFileName,
-        uploadedAt: getLocalDateTimeString(),
-        summaryNotes: resultSummaryNotes.trim() || "24 Hours Holter diagnostic report attached.",
-      };
+      if (!uploadMeta?.storagePath) {
+        throw new Error("Firebase Storage upload did not return a valid file path.");
+      }
+
+      const newResult: TestResultFile = uploadMeta;
 
       await updateAppointment("holter", uploadingReq.id, {
         resultFile: newResult,
