@@ -366,28 +366,46 @@ export async function viewReportFile(
   storagePath: string,
   _fileName: string = "Diagnostic_Report.pdf",
 ): Promise<void> {
-  const blob = await getReportBlob(storagePath);
-  const blobUrl = URL.createObjectURL(blob);
-
-  const newTab = window.open(blobUrl, "_blank");
-  if (!newTab) {
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  if (!storagePath) {
+    throw new Error("Storage path is required.");
   }
 
-  // Revoke Blob URL after short delay to free browser memory
-  setTimeout(() => {
-    try {
+  // Open the tab synchronously, before awaiting Firebase.
+  // This provides immediate feedback and avoids popup blockers.
+  const newTab = window.open("", "_blank");
+
+  if (!newTab) {
+    throw new Error("Popup blocked. Please allow popups for this website.");
+  }
+
+  try {
+    newTab.document.title = "Loading diagnostic report";
+    const message = newTab.document.createElement("p");
+    message.textContent = "Loading diagnostic report securely. Please wait...";
+    message.style.cssText =
+      "font:16px system-ui,sans-serif;padding:24px;color:#333";
+    newTab.document.body.appendChild(message);
+
+    const blob = await getReportBlob(storagePath);
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Navigate the already-open tab to the PDF.
+    if (newTab.closed) {
       URL.revokeObjectURL(blobUrl);
-    } catch {
-      // ignore
+      return;
     }
-  }, 60000);
+
+    newTab.location.replace(blobUrl);
+
+    // Keep the Blob URL alive long enough for large PDFs to load.
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  } catch (error) {
+    if (!newTab.closed) {
+      newTab.document.body.textContent =
+        "Unable to load this report. Please close this tab and try again.";
+    }
+    throw error;
+  }
 }
 
 /**
