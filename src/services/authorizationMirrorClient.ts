@@ -1,6 +1,6 @@
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { auth, defaultDb, functions } from "@/lib/firebase";
+import { auth, defaultDb, functions, IS_DEFAULT_PRIMARY_DB } from "@/lib/firebase";
 
 export interface SyncMirrorCallOptions {
   uid: string;
@@ -147,6 +147,62 @@ export async function ensureUserAuthorizationMirrorSynced(
       errorCode: "invalid-argument",
       errorMessage: "Missing UID for authorization mirror synchronization.",
     };
+  }
+
+  // Once (default) is primary, verify the authoritative user document directly.
+  // Never invoke the legacy mirror synchronization callable in this mode.
+  if (IS_DEFAULT_PRIMARY_DB) {
+    if (!auth.currentUser || auth.currentUser.uid !== cleanUid) {
+      return {
+        verifiedInDefaultDb: false,
+        callableSucceeded: false,
+        mirrorExists: null,
+        mirroredRole: null,
+        mirroredActive: null,
+        mirroredAccountKey: null,
+        mirroredFacilityId: null,
+        attempts: 0,
+        errorCode: "unauthenticated",
+        errorMessage: "Authenticated UID does not match the requested user.",
+      };
+    }
+
+    try {
+      const snapshot = await getDoc(doc(defaultDb, "users", cleanUid));
+      const data = snapshot.exists() ? snapshot.data() : null;
+      const role = typeof data?.["role"] === "string" ? data["role"] : null;
+      const active = typeof data?.["active"] === "boolean" ? data["active"] : null;
+      const expectedRole = options.expectedRole ?? null;
+
+      return {
+        verifiedInDefaultDb:
+          snapshot.exists() &&
+          active === true &&
+          (!expectedRole || role === expectedRole),
+        callableSucceeded: false,
+        mirrorExists: snapshot.exists(),
+        mirroredRole: role,
+        mirroredActive: active,
+        mirroredAccountKey:
+          typeof data?.["accountKey"] === "string" ? data["accountKey"] : null,
+        mirroredFacilityId:
+          typeof data?.["facilityId"] === "string" ? data["facilityId"] : null,
+        attempts: 0,
+      };
+    } catch (error: unknown) {
+      return {
+        verifiedInDefaultDb: false,
+        callableSucceeded: false,
+        mirrorExists: null,
+        mirroredRole: null,
+        mirroredActive: null,
+        mirroredAccountKey: null,
+        mirroredFacilityId: null,
+        attempts: 0,
+        errorCode: String((error as { code?: string })?.code || "unknown"),
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   const dedupeKey = `${cleanUid}::${options.outsourceAppointmentId || ""}::${options.rheumatologyReferralId || ""}`;
@@ -339,7 +395,7 @@ async function executeMirrorSyncWithRetry(
     mirroredAccountKey,
     mirroredFacilityId,
     attempts,
-    errorCode: lastErrorCode,
-    errorMessage: lastErrorMessage,
+    ...(lastErrorCode !== undefined ? { errorCode: lastErrorCode } : {}),
+    ...(lastErrorMessage !== undefined ? { errorMessage: lastErrorMessage } : {}),
   };
 }

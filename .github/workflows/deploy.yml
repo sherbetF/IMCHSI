@@ -46,7 +46,7 @@ jobs:
         env:
           VITE_BASE_PATH: /
           VITE_MAINTENANCE_MODE: "true"
-          VITE_FIRESTORE_DATABASE_ID: "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+          VITE_FIRESTORE_DATABASE_ID: "(default)"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

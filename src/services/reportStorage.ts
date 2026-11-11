@@ -134,13 +134,23 @@ export async function uploadReportFile(
       .substring(0, 100) || "report.pdf";
 
   const rootPrefix = isOutsource ? "outsource" : "facilities";
-  let storagePath = `${rootPrefix}/${validFacilityId}/reports/${validReportId}/${sanitizedFileName}`;
+  // Generate a unique object name before uploading.
+  // Never treat storage/unauthorized as evidence of a filename collision.
+  const extensionIndex = sanitizedFileName.lastIndexOf(".");
+  const baseName = extensionIndex > 0
+    ? sanitizedFileName.substring(0, extensionIndex)
+    : sanitizedFileName;
+  const extension = extensionIndex > 0
+    ? sanitizedFileName.substring(extensionIndex)
+    : "";
+  const uniqueFileName = `${baseName}_${crypto.randomUUID()}${extension}`;
+  let storagePath = `${rootPrefix}/${validFacilityId}/reports/${validReportId}/${uniqueFileName}`;
 
   const authenticatedUid = auth?.currentUser?.uid || null;
   const configuredDatabaseId = (
     import.meta.env["VITE_FIRESTORE_DATABASE_ID"] ||
     firebaseConfig.firestoreDatabaseId ||
-    "ai-studio-hospitalhubdesig-7f7a6729-a1d2-48e8-ba86-ae6c290d754c"
+    "(default)"
   ).trim();
   const configuredBucket =
     (storage as { app?: { options?: { storageBucket?: string } } })?.app?.options?.storageBucket ||
@@ -213,15 +223,12 @@ export async function uploadReportFile(
     defaultDbMirrorActive = syncResult.mirroredActive;
     defaultDbMirrorVerified = syncResult.verifiedInDefaultDb;
 
-    // Only abort if the (default) mirror document was readable and explicitly has inactive status
-    // or a mismatched role after attempting synchronization.
-    if (
-      defaultDbMirrorExists === true &&
-      (defaultDbMirrorActive === false ||
-        (defaultDbMirrorRole !== null && defaultDbMirrorRole !== userRole))
-    ) {
+
+    // Fail closed if the active authorization profile cannot be verified.
+    if (!defaultDbMirrorVerified) {
       throw new Error(
-        `Upload aborted: Authorization mirror users/${authenticatedUid} in (default) database has role='${defaultDbMirrorRole}', active=${String(defaultDbMirrorActive)} (expected role='${userRole}', active=true).`,
+        `Upload aborted: Could not verify active authorization for user ${authenticatedUid} in (default) Firestore. ` +
+        `Verification error: ${syncResult.errorCode || syncResult.errorMessage || "missing or mismatched authorization profile"}.`,
       );
     }
   }
@@ -300,40 +307,9 @@ export async function uploadReportFile(
   };
 
   // Upload binary payload directly to Firebase Storage.
-  // Because storage.rules enforces `resource == null` (no-overwrite policy) and `allow update: if false`,
-  // if the initial upload fails with `storage/unauthorized`, retry once with a unique non-colliding
-  // filename so an existing object at `sanitizedFileName` never blocks a new upload.
-  try {
-    await executeUploadToRef(storageRef);
-  } catch (firstUploadErr: unknown) {
-    const errCode = (firstUploadErr as { code?: string })?.code;
-    if (!isMockService(storage) && errCode === "storage/unauthorized") {
-      destinationObjectAlreadyExists = true;
-      const dotIdx = sanitizedFileName.lastIndexOf(".");
-      const baseName = dotIdx > 0 ? sanitizedFileName.substring(0, dotIdx) : sanitizedFileName;
-      const ext = dotIdx > 0 ? sanitizedFileName.substring(dotIdx) : ".pdf";
-      const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
-      const previousPath = storagePath;
-      storagePath = `${rootPrefix}/${validFacilityId}/reports/${validReportId}/${uniqueFileName}`;
-      storageRef = ref(storage, storagePath);
-
-      console.info(
-        `[ReportStorage] Initial upload to '${previousPath}' returned storage/unauthorized; retrying with unique non-colliding path '${storagePath}' to satisfy resource == null rule.`,
-      );
-
-      try {
-        await executeUploadToRef(storageRef);
-      } catch (retryErr: unknown) {
-        const retryCode = (retryErr as { code?: string })?.code || "storage/unauthorized";
-        throw new Error(
-          `Firebase Storage rejected upload (${retryCode}) at '${storagePath}' for UID '${authenticatedUid}' (role: '${userRole}'). ` +
-            `Verify that /databases/(default)/documents/users/${authenticatedUid} exists in the (default) Firestore database with active: true and role: '${userRole}'.`,
-        );
-      }
-    } else {
-      throw firstUploadErr;
-    }
-  }
+  // Do not interpret storage/unauthorized as a filename collision.
+  // Preserve Firebase's original error for accurate diagnosis.
+  await executeUploadToRef(storageRef);
 
   if (onProgress) {
     onProgress("completed", "Upload completed successfully.", 100);
